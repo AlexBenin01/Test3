@@ -1,0 +1,44 @@
+name: Compile LaTeX and Save PDF
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Compile LaTeX
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 2: Set up LaTeX environment
+      - name: Set up LaTeX
+        uses: dante-ev/latex-action@v2
+        with:
+          latexmk-flags: "-pdf"
+
+      # Step 3: Find and compile .tex files
+      - name: Compile LaTeX files
+        run: |
+          for dir in $(find . -type d -name "*"); do
+            tex_file="$dir/*.tex"
+            if [ -f $tex_file ]; then
+              output_name="$(basename $dir).pdf"
+              latexmk -pdf -output-directory=PDF -jobname=$output_name $tex_file
+            fi
+          done
+
+      # Step 4: Commit and push the generated PDF to the main branch
+      - name: Push compiled PDFs to main branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add PDF/*.pdf
+          git commit -m "Add compiled PDF files"
+          git push
