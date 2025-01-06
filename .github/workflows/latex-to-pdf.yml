@@ -1,41 +1,55 @@
-name: LaTeX to PDF
+name: Compile LaTeX with shell escape enabled
 
 on:
   pull_request:
     branches:
-      - main  # L'azione si attiva quando una pull request viene unita al branch 'main'
-    paths:
-      - '**/*.tex'  # Si attiva quando viene modificato un file .tex
+      - main
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # Usa un runner Ubuntu
-    
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2  # Checkout del repository
+        uses: actions/checkout@v2
 
-      - name: Install LaTeX and latexmk
+      # Install dependencies (TeX Live, Inkscape, and others)
+      - name: Set up TeX Live and Inkscape
         run: |
           sudo apt-get update
-          sudo apt-get install -y texlive-full latexmk  # Installa LaTeX e latexmk
-          sudo apt-get upgrade -y texlive  # Aggiorna TeX Live per garantire che sia aggiornato
+          sudo apt-get install -y texlive-full inkscape
 
-      - name: Find all .tex files and compile
+      # Clean up old files (optional but useful)
+      - name: Clean previous build files
         run: |
-          # Trova tutti i file .tex nel repository (includendo sottocartelle)
-          TEX_FILES=$(find . -type f -name "*.tex")
-          echo "Compiling the following .tex files:"
-          echo "$TEX_FILES"
+          rm -rf PDF/*
+          rm -f *.aux *.log *.out *.toc *.lof *.lot *.fls *.fdb_latexmk
 
-          # Compila ogni file .tex trovato e salva il PDF nella cartella PDF
-          for TEX_FILE in $TEX_FILES; do
-            echo "Compiling $TEX_FILE"
-            latexmk -pdf -output-directory=PDF -f $TEX_FILE  # Usa -f per forzare la compilazione
-          done
+      # Compile LaTeX with shell-escape enabled
+      - name: Compile LaTeX
+        run: |
+          latexmk -pdf -shell-escape -output-directory=PDF 2024-12-19_E.tex
+        continue-on-error: false
 
-      - name: Upload PDF to artifacts
-        uses: actions/upload-artifact@v3  # Aggiorna a v3 per evitare la deprecazione
+      # Check if the PDF was successfully generated
+      - name: Verify PDF creation
+        run: |
+          if [ ! -f "PDF/2024-12-19_E.pdf" ]; then
+            echo "PDF generation failed! Please check the log."
+            exit 1
+          else
+            echo "PDF generated successfully!"
+          fi
+
+      # Upload the generated PDF as an artifact
+      - name: Upload generated PDF as artifact
+        uses: actions/upload-artifact@v3
         with:
-          name: output-pdf
-          path: PDF/*.pdf  # Salva tutti i PDF generati nella cartella 'PDF'
+          name: compiled-pdf
+          path: PDF/2024-12-19_E.pdf
+
+      # Optional: Upload the LaTeX log files for debugging
+      - name: Upload LaTeX logs for debugging
+        uses: actions/upload-artifact@v3
+        with:
+          name: latex-logs
+          path: "*.log"
