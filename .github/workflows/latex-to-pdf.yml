@@ -13,9 +13,11 @@ jobs:
     runs-on: ubuntu-latest  # Use the latest Ubuntu runner
 
     steps:
-      # Checkout code
+      # Checkout code with permissions to push changes
       - name: Checkout code
-        uses: actions/checkout@v3  # Clone the repository
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true  # Ensures the token is available for push
 
       # Install TeX Live and required packages, including Italian support
       - name: Install TeX Live with Italian support
@@ -37,7 +39,7 @@ jobs:
       # Compile LaTeX with shell escape enabled to allow SVG to PDF conversion
       - name: Compile LaTeX to PDF
         run: |
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error 2024-12-10.tex  # Enable shell escape for SVG conversion
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error 2024-12-10.tex
 
       # Create the PDF folder and move the file there
       - name: Move PDF to PDF folder
@@ -45,19 +47,20 @@ jobs:
           mkdir -p PDF  # Create the PDF directory if it doesn't exist
           mv 2024-12-10.pdf PDF/  # Move the generated PDF to the PDF folder
 
-      # Check if the PDF exists in the PDF folder and print a debug message
-      - name: Check if PDF exists in PDF folder
+      # Commit and push the PDF folder to the main branch
+      - name: Commit and push PDF to main
         run: |
-          if [ -f "PDF/2024-12-10.pdf" ]; then
-            echo "PDF successfully moved to PDF folder!"
-          else
-            echo "PDF not found in PDF folder!"
-            exit 1  # Fail the job if PDF is not found in the PDF folder
-          fi
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add PDF/
+          git commit -m "Add PDF output to main"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub token to authenticate the push
 
       # Upload PDF as artifact using v4
       - name: Upload PDF as artifact
         uses: actions/upload-artifact@v4
         with:
           name: pdf
-          path: PDF/2024-12-10.pdf  # Upload the PDF from the PDF folder as an artifact
+          path: PDF/2024-12-10.pdf
