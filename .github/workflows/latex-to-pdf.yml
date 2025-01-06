@@ -39,6 +39,16 @@ jobs:
         run: |
           pdflatex -shell-escape -interaction=nonstopmode -file-line-error 2024-12-10.tex  # Enable shell escape for SVG conversion
 
+      # Check if the PDF exists and print a debug message
+      - name: Check if PDF exists
+        run: |
+          if [ -f "2024-12-10.pdf" ]; then
+            echo "PDF exists!"
+          else
+            echo "PDF not found!"
+            exit 1  # Fail the job if PDF is not found
+          fi
+
       # Upload PDF as artifact
       - name: Upload PDF as artifact
         uses: actions/upload-artifact@v3
