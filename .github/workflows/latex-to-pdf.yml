@@ -17,7 +17,7 @@ jobs:
 
       # Step 2: Set up LaTeX environment
       - name: Set up LaTeX
-        uses: dante-ev/latex-action@v2
+        uses: dante-ev/latex-action@v1
         with:
           latexmk-flags: "-pdf"
 
@@ -27,7 +27,8 @@ jobs:
           for dir in $(find . -type d -name "*"); do
             tex_file="$dir/*.tex"
             if [ -f $tex_file ]; then
-              output_name="$(basename $dir).pdf"
+              # Extract directory name and use it as the PDF name
+              output_name="$(basename $(realpath $dir)).pdf"
               latexmk -pdf -output-directory=PDF -jobname=$output_name $tex_file
             fi
           done
