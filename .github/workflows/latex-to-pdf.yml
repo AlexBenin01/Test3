@@ -13,20 +13,24 @@ jobs:
     runs-on: ubuntu-latest  # Usa un ambiente Ubuntu per eseguire l'azione
 
     steps:
+      # Checkout del codice con la versione v3
       - name: Checkout code
-        uses: actions/checkout@v2  # Clona il repository
+        uses: actions/checkout@v3  # Clona il repository
 
+      # Installazione di TeX Live e dei pacchetti necessari
       - name: Set up TeX Live
         run: |
           sudo apt-get update
-          sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended
+          sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
 
+      # Compilazione del file .tex
       - name: Build PDF
         run: |
           pdflatex 2024-12-10.tex  # Compila il file .tex principale
 
+      # Carica il PDF come artefatto
       - name: Upload PDF as artifact
-        uses: actions/upload-artifact@v3  # Versione aggiornata
+        uses: actions/upload-artifact@v3
         with:
           name: pdf
           path: 2024-12-10.pdf  # Carica il PDF generato come artefatto
