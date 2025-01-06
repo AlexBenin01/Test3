@@ -18,7 +18,8 @@ jobs:
       - name: Install LaTeX and latexmk
         run: |
           sudo apt-get update
-          sudo apt-get install texlive-full latexmk  # Installa LaTeX e latexmk
+          sudo apt-get install -y texlive-full latexmk  # Installa LaTeX e latexmk
+          sudo apt-get upgrade -y texlive  # Aggiorna TeX Live per garantire che sia aggiornato
 
       - name: Find all .tex files and compile
         run: |
@@ -30,7 +31,7 @@ jobs:
           # Compila ogni file .tex trovato e salva il PDF nella cartella PDF
           for TEX_FILE in $TEX_FILES; do
             echo "Compiling $TEX_FILE"
-            latexmk -pdf -output-directory=PDF $TEX_FILE  # Compila ogni file in PDF nella cartella 'PDF'
+            latexmk -pdf -output-directory=PDF -f $TEX_FILE  # Usa -f per forzare la compilazione
           done
 
       - name: Upload PDF to artifacts
