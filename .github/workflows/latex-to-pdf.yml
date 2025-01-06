@@ -1,46 +1,40 @@
-name: Compile LaTeX and Save PDF
+name: LaTeX to PDF
 
 on:
-  push:
+  pull_request:
     branches:
-      - main
+      - main  # L'azione si attiva quando una pull request viene unita al branch 'main'
+    paths:
+      - '**/*.tex'  # Si attiva quando viene modificato un file .tex
 
 jobs:
   build:
-    name: Compile LaTeX
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-latest  # Usa un runner Ubuntu
+    
     steps:
-      # Step 1: Check out the repository
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v2  # Checkout del repository
 
-      # Step 2: Install TeX Live
-      - name: Install TeX Live
+      - name: Install LaTeX and latexmk
         run: |
           sudo apt-get update
-          sudo apt-get install -y texlive-full
+          sudo apt-get install texlive-full latexmk  # Installa LaTeX e latexmk
 
-      # Step 3: Find and compile .tex files
-      - name: Compile LaTeX files
+      - name: Find all .tex files and compile
         run: |
-          mkdir -p PDF
-          for dir in $(find . -type d -name "*"); do
-            tex_file="$dir/*.tex"
-            if [ -f $tex_file ]; then
-              # Extract directory name and use it as the PDF name
-              output_name="$(basename $(realpath $dir)).pdf"
-              pdflatex -output-directory=PDF -jobname=$output_name $tex_file
-            fi
+          # Trova tutti i file .tex nel repository (includendo sottocartelle)
+          TEX_FILES=$(find . -type f -name "*.tex")
+          echo "Compiling the following .tex files:"
+          echo "$TEX_FILES"
+
+          # Compila ogni file .tex trovato e salva il PDF nella cartella PDF
+          for TEX_FILE in $TEX_FILES; do
+            echo "Compiling $TEX_FILE"
+            latexmk -pdf -output-directory=PDF $TEX_FILE  # Compila ogni file in PDF nella cartella 'PDF'
           done
 
-      # Step 4: Commit and push the generated PDF to the main branch
-      - name: Push compiled PDFs to main branch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add PDF/*.pdf
-          git commit -m "Add compiled PDF files"
-          git push
+      - name: Upload PDF to artifacts
+        uses: actions/upload-artifact@v2  # Carica il PDF come artefatto
+        with:
+          name: output-pdf
+          path: PDF/*.pdf  # Salva tutti i PDF generati nella cartella 'PDF'
