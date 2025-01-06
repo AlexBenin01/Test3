@@ -17,16 +17,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3  # Clona il repository
 
-      # Installazione di TeX Live e dei pacchetti necessari
-      - name: Set up TeX Live
+      # Installazione di TeX Live e dei pacchetti necessari per il supporto italiano
+      - name: Set up TeX Live with Italian support
         run: |
           sudo apt-get update
           sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
 
-      # Compilazione del file .tex
+      # Installa Inkscape per la conversione SVG -> PDF
+      - name: Install Inkscape
+        run: |
+          sudo apt-get install -y inkscape
+
+      # Converti il file SVG in PDF
+      - name: Convert SVG to PDF
+        run: |
+          inkscape images/pebkac.svg --export-filename=images/pebkac.pdf
+
+      # Compilazione del file .tex (assicurati di usare `pdflatex` per i documenti LaTeX)
       - name: Build PDF
         run: |
-          pdflatex 2024-12-10.tex  # Compila il file .tex principale
+          pdflatex -interaction=nonstopmode -file-line-error 2024-12-10.tex  # Compila il file .tex principale
 
       # Carica il PDF come artefatto
       - name: Upload PDF as artifact
