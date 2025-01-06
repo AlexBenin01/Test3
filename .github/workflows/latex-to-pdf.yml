@@ -1,55 +1,68 @@
-name: Compile LaTeX with shell escape enabled
+name: LaTeX Build and PDF Generation
 
 on:
   pull_request:
     branches:
       - main
+    paths:
+      - '**/*.tex'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
+      # Checkout del repository
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      # Install dependencies (TeX Live, Inkscape, and others)
-      - name: Set up TeX Live and Inkscape
+      # Cache dei pacchetti TeX Live per ridurre i tempi di esecuzione
+      - name: Cache TeX Live packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.texlive
+          key: ${{ runner.os }}-texlive-${{ hashFiles('**/*.tex') }}
+          restore-keys: |
+            ${{ runner.os }}-texlive-
+
+      # Setup TeX Live per LaTeX
+      - name: Set up TeX Live
         run: |
           sudo apt-get update
-          sudo apt-get install -y texlive-full inkscape
+          sudo apt-get install -y texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra texlive-xetex texlive-pictures texlive-generic-extra
+        continue-on-error: false  # Se fallisce, fermiamo l'esecuzione
 
-      # Clean up old files (optional but useful)
-      - name: Clean previous build files
+      # Compilazione LaTeX con latexmk
+      - name: Compile LaTeX with latexmk
         run: |
-          rm -rf PDF/*
-          rm -f *.aux *.log *.out *.toc *.lof *.lot *.fls *.fdb_latexmk
+          # Lista dei file nel progetto per debug
+          echo "Listing project files..."
+          ls -R
 
-      # Compile LaTeX with shell-escape enabled
-      - name: Compile LaTeX
-        run: |
-          latexmk -pdf -shell-escape -output-directory=PDF 2024-12-19_E.tex
-        continue-on-error: false
+          # Trova tutti i file .tex nel repository
+          TEX_FILES=$(find . -type f -name "*.tex")
+          echo "Compiling the following .tex files:"
+          echo "$TEX_FILES"
 
-      # Check if the PDF was successfully generated
-      - name: Verify PDF creation
+          # Compila ogni file .tex trovato
+          for TEX_FILE in $TEX_FILES; do
+            echo "Compiling $TEX_FILE"
+            latexmk -pdf -shell-escape -output-directory=PDF $TEX_FILE || { echo "Error compiling $TEX_FILE"; exit 1; }  # Controllo errore
+          done
+
+      # Verifica se sono stati creati dei file PDF nella cartella PDF
+      - name: Verify PDF files were generated
         run: |
-          if [ ! -f "PDF/2024-12-19_E.pdf" ]; then
-            echo "PDF generation failed! Please check the log."
-            exit 1
+          if [ ! -d "PDF" ] || [ -z "$(ls -A PDF)" ]; then
+            echo "No PDFs generated. Aborting.";
+            exit 1;
           else
-            echo "PDF generated successfully!"
+            echo "PDF files successfully generated.";
           fi
 
-      # Upload the generated PDF as an artifact
-      - name: Upload generated PDF as artifact
+      # Carica il PDF come artifact
+      - name: Upload PDF as artifact
         uses: actions/upload-artifact@v3
         with:
-          name: compiled-pdf
-          path: PDF/2024-12-19_E.pdf
-
-      # Optional: Upload the LaTeX log files for debugging
-      - name: Upload LaTeX logs for debugging
-        uses: actions/upload-artifact@v3
-        with:
-          name: latex-logs
-          path: "*.log"
+          name: pdf-files
+          path: PDF/
