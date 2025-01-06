@@ -39,19 +39,25 @@ jobs:
         run: |
           pdflatex -shell-escape -interaction=nonstopmode -file-line-error 2024-12-10.tex  # Enable shell escape for SVG conversion
 
-      # Check if the PDF exists and print a debug message
-      - name: Check if PDF exists
+      # Create the PDF folder and move the file there
+      - name: Move PDF to PDF folder
         run: |
-          if [ -f "2024-12-10.pdf" ]; then
-            echo "PDF exists!"
+          mkdir -p PDF  # Create the PDF directory if it doesn't exist
+          mv 2024-12-10.pdf PDF/  # Move the generated PDF to the PDF folder
+
+      # Check if the PDF exists in the PDF folder and print a debug message
+      - name: Check if PDF exists in PDF folder
+        run: |
+          if [ -f "PDF/2024-12-10.pdf" ]; then
+            echo "PDF successfully moved to PDF folder!"
           else
-            echo "PDF not found!"
-            exit 1  # Fail the job if PDF is not found
+            echo "PDF not found in PDF folder!"
+            exit 1  # Fail the job if PDF is not found in the PDF folder
           fi
 
-      # Upload PDF as artifact
+      # Upload PDF as artifact using v4
       - name: Upload PDF as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: pdf
-          path: 2024-12-10.pdf  # Upload the generated PDF as an artifact
+          path: PDF/2024-12-10.pdf  # Upload the PDF from the PDF folder as an artifact
