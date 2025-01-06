@@ -26,7 +26,7 @@ jobs:
           pdflatex 2024-12-10.tex  # Compila il file .tex principale
 
       - name: Upload PDF as artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3  # Versione aggiornata
         with:
           name: pdf
           path: 2024-12-10.pdf  # Carica il PDF generato come artefatto
