@@ -15,21 +15,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Step 2: Set up LaTeX environment
-      - name: Set up LaTeX
-        uses: dante-ev/latex-action@v1
-        with:
-          latexmk-flags: "-pdf"
+      # Step 2: Install TeX Live
+      - name: Install TeX Live
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive-full
 
       # Step 3: Find and compile .tex files
       - name: Compile LaTeX files
         run: |
+          mkdir -p PDF
           for dir in $(find . -type d -name "*"); do
             tex_file="$dir/*.tex"
             if [ -f $tex_file ]; then
               # Extract directory name and use it as the PDF name
               output_name="$(basename $(realpath $dir)).pdf"
-              latexmk -pdf -output-directory=PDF -jobname=$output_name $tex_file
+              pdflatex -output-directory=PDF -jobname=$output_name $tex_file
             fi
           done
 
