@@ -42,7 +42,7 @@ jobs:
         continue-on-error: false  # Fail the job if compilation fails
 
       - name: Upload compiled PDFs as artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: compiled-pdf
           path: $OUTPUT_DIR/*.pdf
