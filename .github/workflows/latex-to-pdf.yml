@@ -34,7 +34,7 @@ jobs:
           done
 
       - name: Upload PDF to artifacts
-        uses: actions/upload-artifact@v2  # Carica il PDF come artefatto
+        uses: actions/upload-artifact@v3  # Aggiorna a v3 per evitare la deprecazione
         with:
           name: output-pdf
           path: PDF/*.pdf  # Salva tutti i PDF generati nella cartella 'PDF'
