@@ -1,68 +1,56 @@
-name: LaTeX Build and PDF Generation
+name: Compile LaTeX to PDF
 
 on:
+  push:
+    branches:
+      - main
+
   pull_request:
     branches:
       - main
-    paths:
-      - '**/*.tex'
 
 jobs:
-  build:
+  compile_latex:
     runs-on: ubuntu-latest
+    env:
+      TEX_FILE: "2024-12-19_E.tex"
+      OUTPUT_DIR: "PDF"
+      TEXLIVE_CACHE: "/tmp/texlive-cache"
 
     steps:
-      # Checkout del repository
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      # Cache dei pacchetti TeX Live per ridurre i tempi di esecuzione
-      - name: Cache TeX Live packages
-        uses: actions/cache@v3
+      - name: Set up LaTeX environment
+        run: |
+          # Install LaTeX dependencies
+          sudo apt update
+          sudo apt install -y texlive-full
+
+          # Caching texlive to speed up the next runs
+          sudo apt install -y texlive-fonts-recommended texlive-latex-base
+          
+          # Make sure directories are available
+          mkdir -p $OUTPUT_DIR
+
+      - name: Compile LaTeX file to PDF
+        run: |
+          # Run latexmk to compile the LaTeX file with error handling
+          echo "Compiling $TEX_FILE..."
+          latexmk -pdf -shell-escape -output-directory=$OUTPUT_DIR $TEX_FILE
+
+        continue-on-error: false  # Fail the job if compilation fails
+
+      - name: Upload compiled PDFs as artifacts
+        uses: actions/upload-artifact@v2
         with:
-          path: ~/.texlive
+          name: compiled-pdf
+          path: $OUTPUT_DIR/*.pdf
+
+      - name: Cache LaTeX dependencies
+        uses: actions/cache@v2
+        with:
+          path: $TEXLIVE_CACHE
           key: ${{ runner.os }}-texlive-${{ hashFiles('**/*.tex') }}
           restore-keys: |
             ${{ runner.os }}-texlive-
-
-      # Setup TeX Live per LaTeX
-      - name: Set up TeX Live
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra texlive-xetex texlive-pictures texlive-generic-extra
-        continue-on-error: false  # Se fallisce, fermiamo l'esecuzione
-
-      # Compilazione LaTeX con latexmk
-      - name: Compile LaTeX with latexmk
-        run: |
-          # Lista dei file nel progetto per debug
-          echo "Listing project files..."
-          ls -R
-
-          # Trova tutti i file .tex nel repository
-          TEX_FILES=$(find . -type f -name "*.tex")
-          echo "Compiling the following .tex files:"
-          echo "$TEX_FILES"
-
-          # Compila ogni file .tex trovato
-          for TEX_FILE in $TEX_FILES; do
-            echo "Compiling $TEX_FILE"
-            latexmk -pdf -shell-escape -output-directory=PDF $TEX_FILE || { echo "Error compiling $TEX_FILE"; exit 1; }  # Controllo errore
-          done
-
-      # Verifica se sono stati creati dei file PDF nella cartella PDF
-      - name: Verify PDF files were generated
-        run: |
-          if [ ! -d "PDF" ] || [ -z "$(ls -A PDF)" ]; then
-            echo "No PDFs generated. Aborting.";
-            exit 1;
-          else
-            echo "PDF files successfully generated.";
-          fi
-
-      # Carica il PDF come artifact
-      - name: Upload PDF as artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: pdf-files
-          path: PDF/
