@@ -1,56 +1,32 @@
-name: Compile LaTeX to PDF
+name: Build PDF
 
 on:
   push:
     branches:
-      - main
-
+      - main  # Triggera l'azione ogni volta che c'è un push sul branch principale
   pull_request:
     branches:
-      - main
+      - main  # Triggera l'azione per ogni pull request
 
 jobs:
-  compile_latex:
-    runs-on: ubuntu-latest
-    env:
-      TEX_FILE: "2024-12-19_E.tex"
-      OUTPUT_DIR: "PDF"
-      TEXLIVE_CACHE: "/tmp/texlive-cache"
+  build:
+    runs-on: ubuntu-latest  # Usa un ambiente Ubuntu per eseguire l'azione
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2  # Clona il repository
 
-      - name: Set up LaTeX environment
+      - name: Set up TeX Live
         run: |
-          # Install LaTeX dependencies
-          sudo apt update
-          sudo apt install -y texlive-full
+          sudo apt-get update
+          sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended
 
-          # Caching texlive to speed up the next runs
-          sudo apt install -y texlive-fonts-recommended texlive-latex-base
-          
-          # Make sure directories are available
-          mkdir -p $OUTPUT_DIR
-
-      - name: Compile LaTeX file to PDF
+      - name: Build PDF
         run: |
-          # Run latexmk to compile the LaTeX file with error handling
-          echo "Compiling $TEX_FILE..."
-          latexmk -pdf -shell-escape -output-directory=$OUTPUT_DIR $TEX_FILE
+          pdflatex 2024-12-10.tex  # Compila il file .tex principale
 
-        continue-on-error: false  # Fail the job if compilation fails
-
-      - name: Upload compiled PDFs as artifacts
-        uses: actions/upload-artifact@v3
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v2
         with:
-          name: compiled-pdf
-          path: $OUTPUT_DIR/*.pdf
-
-      - name: Cache LaTeX dependencies
-        uses: actions/cache@v2
-        with:
-          path: $TEXLIVE_CACHE
-          key: ${{ runner.os }}-texlive-${{ hashFiles('**/*.tex') }}
-          restore-keys: |
-            ${{ runner.os }}-texlive-
+          name: pdf
+          path: 2024-12-10.pdf  # Carica il PDF generato come artefatto
