@@ -1,81 +1,57 @@
-name: Build PDF
+name: LaTeX Compilation
 
 on:
   push:
     branches:
-      - main  # Trigger this action on push to main
+      - main
   pull_request:
     branches:
-      - main  # Trigger this action on pull request to main
+      - main
 
 jobs:
-  build:
-    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
-
+  compile:
+    runs-on: ubuntu-latest
+    
     steps:
-      # Checkout code with permissions to push changes
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          persist-credentials: true  # Ensures the token is available for push
+    - name: Check out the repository
+      uses: actions/checkout@v2
 
-      # Install TeX Live and required packages, including Italian support
-      - name: Install TeX Live with Italian support
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
+    - name: Set up LaTeX
+      run: sudo apt-get install -y texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-fonts-extra
 
-      # Install Inkscape for SVG to PDF conversion
-      - name: Install Inkscape
-        run: |
-          sudo apt-get install -y inkscape
+    - name: Find the .tex file and its directory
+      run: |
+        # Troviamo la cartella principale contenente il file .tex
+        export TEX_DIR=$(find . -type f -name "*.tex" -exec dirname {} \; | head -n 1)
+        export TEX_FILE=$(find $TEX_DIR -name "*.tex" | head -n 1)
 
-      # Find the directory containing the main .tex file (dynamically)
-      - name: Set up LaTeX project directory
-        run: |
-          # Troviamo la cartella principale contenente il file .tex
-          export TEX_DIR=$(find . -type f -name "*.tex" -exec dirname {} \; | head -n 1)
-          export TEX_FILE=$(find $TEX_DIR -name "*.tex" | head -n 1)  # Trova il file .tex in quella cartella
-          echo "TEX_DIR=${TEX_DIR}" >> $GITHUB_ENV
-          echo "TEX_FILE=${TEX_FILE}" >> $GITHUB_ENV
-        id: setup
+        echo "TEX_DIR=${TEX_DIR}" >> $GITHUB_ENV
+        echo "TEX_FILE=${TEX_FILE}" >> $GITHUB_ENV
 
-      # Convert SVG to PDF before LaTeX compilation (required by svg package)
-      - name: Convert SVG to PDF
-        run: |
-          # Modificato per usare il percorso corretto delle immagini
-          inkscape $TEX_DIR/../images/pebkac.svg --export-filename=$TEX_DIR/../images/pebkac.pdf
-          inkscape $TEX_DIR/../images/logo_unipd.svg --export-filename=$TEX_DIR/../images/logo_unipd.pdf
+        echo "File trovato: $TEX_FILE nella cartella $TEX_DIR"
 
-      # Compile LaTeX with shell escape enabled to allow SVG to PDF conversion
-      - name: Compile LaTeX to PDF
-        run: |
-          # Naviga alla cartella principale del progetto
-          cd $(dirname $TEX_FILE)  # Naviga nella cartella che contiene il file .tex
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $(basename $TEX_FILE)
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $(basename $TEX_FILE)  # Second run to resolve references
+    - name: Create output PDF directory
+      run: |
+        # Creiamo la directory per il PDF se non esiste
+        OUTPUT_DIR="PDF/$(basename $TEX_DIR)"
+        mkdir -p $OUTPUT_DIR
+        echo "La directory per il PDF sarà: $OUTPUT_DIR"
 
-      # Create the corresponding folder structure in PDF and move the file there
-      - name: Create PDF folder structure and move PDF
-        run: |
-          # Usa la cartella e il nome dinamico
-          mkdir -p PDF/$(basename $TEX_DIR)  # Create the corresponding folder inside PDF
-          mv $(dirname $TEX_FILE)/$(basename $TEX_FILE .tex).pdf PDF/$(basename $TEX_DIR)/  # Move the generated PDF to the correct folder structure
+    - name: Compile LaTeX file
+      run: |
+        # Compilazione del file .tex
+        pdflatex -shell-escape -interaction=nonstopmode -file-line-error $TEX_FILE
+        pdflatex -shell-escape -interaction=nonstopmode -file-line-error $TEX_FILE  # Secondo run per risolvere i riferimenti
 
-      # Commit and push the PDF folder to the main branch
-      - name: Commit and push PDF to main
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add PDF/
-          git commit -m "Add PDF output to main"
-          git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub token to authenticate the push
-
-      # Upload PDF as artifact using v4
-      - name: Upload PDF as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pdf
-          path: PDF/$(basename $TEX_DIR)/$(basename $TEX_FILE .tex).pdf
+    - name: Move PDF to the correct output directory
+      run: |
+        # Spostiamo il PDF generato nella cartella PDF/analisi_dei_requisiti
+        OUTPUT_DIR="PDF/$(basename $TEX_DIR)"
+        mv *.pdf $OUTPUT_DIR/
+        echo "PDF spostato in: $OUTPUT_DIR"
+      
+    - name: Upload PDF
+      uses: actions/upload-artifact@v3
+      with:
+        name: output-pdf
+        path: $TEX_DIR/*.pdf
