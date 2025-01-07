@@ -30,11 +30,12 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
-      # Find the directory containing the .tex file
+      # Find the directory containing the main .tex file (dynamically)
       - name: Set up LaTeX project directory
         run: |
+          # Troviamo la cartella principale contenente il file .tex
           export TEX_DIR=$(find . -type f -name "*.tex" -exec dirname {} \; | head -n 1)
-          export TEX_FILE=$(basename $TEX_DIR)/$(basename $(find $TEX_DIR -type f -name "*.tex"))
+          export TEX_FILE=$(find $TEX_DIR -name "*.tex" | head -n 1)  # Trova il file .tex in quella cartella
           echo "TEX_DIR=${TEX_DIR}" >> $GITHUB_ENV
           echo "TEX_FILE=${TEX_FILE}" >> $GITHUB_ENV
         id: setup
@@ -42,8 +43,9 @@ jobs:
       # Convert SVG to PDF before LaTeX compilation (required by svg package)
       - name: Convert SVG to PDF
         run: |
-          inkscape $TEX_DIR/images/pebkac.svg --export-filename=$TEX_DIR/images/pebkac.pdf
-          inkscape $TEX_DIR/images/logo_unipd.svg --export-filename=$TEX_DIR/images/logo_unipd.pdf
+          # Modificato per usare il percorso corretto delle immagini
+          inkscape $TEX_DIR/../images/pebkac.svg --export-filename=$TEX_DIR/../images/pebkac.pdf
+          inkscape $TEX_DIR/../images/logo_unipd.svg --export-filename=$TEX_DIR/../images/logo_unipd.pdf
 
       # Compile LaTeX with shell escape enabled to allow SVG to PDF conversion
       - name: Compile LaTeX to PDF
@@ -55,8 +57,9 @@ jobs:
       # Create the corresponding folder structure in PDF and move the file there
       - name: Create PDF folder structure and move PDF
         run: |
+          # Usa la cartella e il nome dinamico
           mkdir -p PDF/$(basename $TEX_DIR)  # Create the corresponding folder inside PDF
-          mv $TEX_DIR/$TEX_FILE.pdf PDF/$(basename $TEX_DIR)/  # Move the generated PDF to the correct folder structure
+          mv $TEX_DIR/$(basename $TEX_FILE .tex).pdf PDF/$(basename $TEX_DIR)/  # Move the generated PDF to the correct folder structure
 
       # Commit and push the PDF folder to the main branch
       - name: Commit and push PDF to main
@@ -74,4 +77,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pdf
-          path: PDF/$(basename $TEX_DIR)/$(basename $TEX_FILE).pdf
+          path: PDF/$(basename $TEX_DIR)/$(basename $TEX_FILE .tex).pdf
