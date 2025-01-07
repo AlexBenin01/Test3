@@ -1,70 +1,78 @@
 name: Build PDF
 
-on:
-  workflow_dispatch:  # Permette di avviare manualmente il workflow con un file .tex come input
+on: 
+  push:
+    branches:
+      - main  # Trigger this action on push to main
+  pull_request:
+    branches:
+      - main  # Trigger this action on pull request to main
+  workflow_dispatch:  # Permette di eseguire manualmente il workflow con un input
     inputs:
-      tex_file:
-        description: "Nome del file .tex senza estensione (esempio: 2024-12-10)"
+      folder_name:
+        description: "Nome della cartella contenente il file .tex"
         required: true
         default: "2024-12-10"
 
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
-env:
-  PDF_FOLDER: "PDF"
-
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
 
     steps:
+      # Checkout code with permissions to push changes
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true  # Ensures the token is available for push
 
+      # Install TeX Live and required packages, including Italian support
       - name: Install TeX Live with Italian support
         run: |
           sudo apt-get update
           sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
 
+      # Install Inkscape for SVG to PDF conversion
       - name: Install Inkscape
-        run: sudo apt-get install -y inkscape
+        run: |
+          sudo apt-get install -y inkscape
 
+      # Convert SVG to PDF before LaTeX compilation (required by svg package)
       - name: Convert SVG to PDF
         run: |
-          FILE_NAME=${{ github.event.inputs.tex_file }}
-          inkscape $FILE_NAME/images/pebkac.svg --export-filename=$FILE_NAME/images/pebkac.pdf
-          inkscape $FILE_NAME/images/logo_unipd.svg --export-filename=$FILE_NAME/images/logo_unipd.pdf
+          FOLDER_NAME=${{ github.event.inputs.folder_name }}
+          inkscape $FOLDER_NAME/images/pebkac.svg --export-filename=$FOLDER_NAME/images/pebkac.pdf
+          inkscape $FOLDER_NAME/images/logo_unipd.svg --export-filename=$FOLDER_NAME/images/logo_unipd.pdf
 
+      # Compile LaTeX with shell escape enabled to allow SVG to PDF conversion
       - name: Compile LaTeX to PDF
         run: |
-          FILE_NAME=${{ github.event.inputs.tex_file }}
-          cd $FILE_NAME
-          latexmk -pdf -shell-escape -interaction=nonstopmode $FILE_NAME.tex
+          FOLDER_NAME=${{ github.event.inputs.folder_name }}
+          cd $FOLDER_NAME  # Naviga nella cartella specificata
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $FOLDER_NAME.tex
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $FOLDER_NAME.tex  # Seconda compilazione per risolvere i riferimenti e la numerazione
 
+      # Create the corresponding folder structure in PDF and move the file there
       - name: Create PDF folder structure and move PDF
         run: |
-          FILE_NAME=${{ github.event.inputs.tex_file }}
-          mkdir -p ${{ env.PDF_FOLDER }}/$FILE_NAME
-          mv $FILE_NAME/$FILE_NAME.pdf ${{ env.PDF_FOLDER }}/$FILE_NAME/
+          FOLDER_NAME=${{ github.event.inputs.folder_name }}
+          mkdir -p PDF/$FOLDER_NAME  # Create the corresponding folder inside PDF
+          mv $FOLDER_NAME/$FOLDER_NAME.pdf PDF/$FOLDER_NAME/  # Move the generated PDF to the correct folder structure
 
+      # Commit and push the PDF folder to the main branch
       - name: Commit and push PDF to main
         run: |
-          FILE_NAME=${{ github.event.inputs.tex_file }}
+          FOLDER_NAME=${{ github.event.inputs.folder_name }}
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add ${{ env.PDF_FOLDER }}/
-          git commit -m "Add PDF output for $FILE_NAME"
+          git add PDF/
+          git commit -m "Add PDF output for $FOLDER_NAME"
           git push origin main
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub token to authenticate the push
 
+      # Upload PDF as artifact using v4
       - name: Upload PDF as artifact
         uses: actions/upload-artifact@v4
         with:
           name: pdf
-          path: ${{ env.PDF_FOLDER }}/${{ github.event.inputs.tex_file }}/${{ github.event.inputs.tex_file }}.pdf
+          path: PDF/${{ github.event.inputs.folder_name }}/${{ github.event.inputs.folder_name }}.pdf
