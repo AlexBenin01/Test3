@@ -47,7 +47,7 @@ jobs:
       - name: Move PDF to PDF folder
         run: |
           mkdir -p 2024-12-10/PDF  # Create the PDF directory if it doesn't exist
-          mv 2024-12-10.pdf 2024-12-10/PDF/  # Move the generated PDF to the PDF folder
+          mv 2024-12-10/2024-12-10.pdf 2024-12-10/PDF/  # Move the generated PDF to the PDF folder
 
       # Commit and push the PDF folder to the main branch
       - name: Commit and push PDF to main
