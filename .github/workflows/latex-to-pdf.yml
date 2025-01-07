@@ -30,24 +30,33 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
+      # Find the directory containing the .tex file
+      - name: Set up LaTeX project directory
+        run: |
+          export TEX_DIR=$(find . -type f -name "*.tex" -exec dirname {} \; | head -n 1)
+          export TEX_FILE=$(basename $TEX_DIR)/$(basename $(find $TEX_DIR -type f -name "*.tex"))
+          echo "TEX_DIR=${TEX_DIR}" >> $GITHUB_ENV
+          echo "TEX_FILE=${TEX_FILE}" >> $GITHUB_ENV
+        id: setup
+
       # Convert SVG to PDF before LaTeX compilation (required by svg package)
       - name: Convert SVG to PDF
         run: |
-          inkscape 2024-12-10/images/pebkac.svg --export-filename=2024-12-10/images/pebkac.pdf
-          inkscape 2024-12-10/images/logo_unipd.svg --export-filename=2024-12-10/images/logo_unipd.pdf
+          inkscape $TEX_DIR/images/pebkac.svg --export-filename=$TEX_DIR/images/pebkac.pdf
+          inkscape $TEX_DIR/images/logo_unipd.svg --export-filename=$TEX_DIR/images/logo_unipd.pdf
 
       # Compile LaTeX with shell escape enabled to allow SVG to PDF conversion
       - name: Compile LaTeX to PDF
         run: |
-          cd 2024-12-10  # Naviga nella cartella 2024-12-10
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error 2024-12-10.tex
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error 2024-12-10.tex  # Seconda compilazione per risolvere i riferimenti e la numerazione
+          cd $TEX_DIR  # Navigate to the LaTeX project directory
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $TEX_FILE
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $TEX_FILE  # Second run to resolve references
 
       # Create the corresponding folder structure in PDF and move the file there
       - name: Create PDF folder structure and move PDF
         run: |
-          mkdir -p PDF/2024-12-10  # Create the corresponding folder inside PDF
-          mv 2024-12-10/2024-12-10.pdf PDF/2024-12-10/  # Move the generated PDF to the correct folder structure
+          mkdir -p PDF/$(basename $TEX_DIR)  # Create the corresponding folder inside PDF
+          mv $TEX_DIR/$TEX_FILE.pdf PDF/$(basename $TEX_DIR)/  # Move the generated PDF to the correct folder structure
 
       # Commit and push the PDF folder to the main branch
       - name: Commit and push PDF to main
@@ -65,4 +74,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pdf
-          path: PDF/2024-12-10/2024-12-10.pdf
+          path: PDF/$(basename $TEX_DIR)/$(basename $TEX_FILE).pdf
