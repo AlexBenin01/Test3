@@ -1,84 +1,70 @@
+name: Build PDF
+
 on:
+  workflow_dispatch:  # Permette di avviare manualmente il workflow con un file .tex come input
+    inputs:
+      tex_file:
+        description: "Nome del file .tex senza estensione (esempio: 2024-12-10)"
+        required: true
+        default: "2024-12-10"
+
   push:
     branches:
-      - main  # Trigger this action on push to main
+      - main
   pull_request:
     branches:
-      - main  # Trigger this action on pull request to main
+      - main
+
+env:
+  PDF_FOLDER: "PDF"
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+    runs-on: ubuntu-latest
 
     steps:
-      # Checkout code with permissions to push changes
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          persist-credentials: true  # Ensures the token is available for push
 
-      # Install TeX Live and required packages, including Italian support
       - name: Install TeX Live with Italian support
         run: |
           sudo apt-get update
           sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
 
-      # Install Inkscape for SVG to PDF conversion
       - name: Install Inkscape
-        run: |
-          sudo apt-get install -y inkscape
+        run: sudo apt-get install -y inkscape
 
-      # Check if the required SVG files exist
-      - name: Check if SVG files exist
-        run: |
-          if [ ! -f "images/pebkac.svg" ]; then
-            echo "Error: images/pebkac.svg not found!" && exit 1
-          fi
-          if [ ! -f "images/logo_unipd.svg" ]; then
-            echo "Error: images/logo_unipd.svg not found!" && exit 1
-          fi
-          echo "SVG files found, proceeding with conversion."
-
-      # Convert SVG to PDF before LaTeX compilation (required by svg package)
       - name: Convert SVG to PDF
         run: |
-          inkscape images/pebkac.svg --export-filename=images/pebkac.pdf
-          inkscape images/logo_unipd.svg --export-filename=images/logo_unipd.pdf
+          FILE_NAME=${{ github.event.inputs.tex_file }}
+          inkscape $FILE_NAME/images/pebkac.svg --export-filename=$FILE_NAME/images/pebkac.pdf
+          inkscape $FILE_NAME/images/logo_unipd.svg --export-filename=$FILE_NAME/images/logo_unipd.pdf
 
-      # Find the main directory and .tex file dynamically
-      - name: Find LaTeX directory and file
-        run: |
-          export TEX_DIR=$(find . -type f -name "*.tex" -exec dirname {} \; | head -n 1)
-          export TEX_FILE=$(find $TEX_DIR -name "*.tex" | head -n 1)
-          echo "TEX_DIR=${TEX_DIR}" >> $GITHUB_ENV
-          echo "TEX_FILE=${TEX_FILE}" >> $GITHUB_ENV
-          echo "File trovato: $TEX_FILE nella cartella $TEX_DIR"
-      
-      # Compile LaTeX to PDF with shell escape enabled
       - name: Compile LaTeX to PDF
         run: |
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $TEX_FILE
+          FILE_NAME=${{ github.event.inputs.tex_file }}
+          cd $FILE_NAME
+          latexmk -pdf -shell-escape -interaction=nonstopmode $FILE_NAME.tex
 
-      # Create the PDF folder and move the file there
-      - name: Move PDF to PDF folder
+      - name: Create PDF folder structure and move PDF
         run: |
-          mkdir -p PDF  # Create the PDF directory if it doesn't exist
-          mv $TEX_FILE.pdf PDF/  # Move the generated PDF to the PDF folder
+          FILE_NAME=${{ github.event.inputs.tex_file }}
+          mkdir -p ${{ env.PDF_FOLDER }}/$FILE_NAME
+          mv $FILE_NAME/$FILE_NAME.pdf ${{ env.PDF_FOLDER }}/$FILE_NAME/
 
-      # Commit and push the PDF folder to the main branch
       - name: Commit and push PDF to main
         run: |
+          FILE_NAME=${{ github.event.inputs.tex_file }}
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add PDF/
-          git commit -m "Add PDF output to main"
+          git add ${{ env.PDF_FOLDER }}/
+          git commit -m "Add PDF output for $FILE_NAME"
           git push origin main
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub token to authenticate the push
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Upload PDF as artifact using v4
       - name: Upload PDF as artifact
         uses: actions/upload-artifact@v4
         with:
           name: pdf
-          path: PDF/*.pdf
+          path: ${{ env.PDF_FOLDER }}/${{ github.event.inputs.tex_file }}/${{ github.event.inputs.tex_file }}.pdf
