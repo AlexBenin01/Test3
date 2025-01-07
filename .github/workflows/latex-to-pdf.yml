@@ -50,16 +50,17 @@ jobs:
       # Compile LaTeX with shell escape enabled to allow SVG to PDF conversion
       - name: Compile LaTeX to PDF
         run: |
-          cd $TEX_DIR  # Navigate to the LaTeX project directory
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $TEX_FILE
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $TEX_FILE  # Second run to resolve references
+          # Naviga alla cartella principale del progetto
+          cd $(dirname $TEX_FILE)  # Naviga nella cartella che contiene il file .tex
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $(basename $TEX_FILE)
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $(basename $TEX_FILE)  # Second run to resolve references
 
       # Create the corresponding folder structure in PDF and move the file there
       - name: Create PDF folder structure and move PDF
         run: |
           # Usa la cartella e il nome dinamico
           mkdir -p PDF/$(basename $TEX_DIR)  # Create the corresponding folder inside PDF
-          mv $TEX_DIR/$(basename $TEX_FILE .tex).pdf PDF/$(basename $TEX_DIR)/  # Move the generated PDF to the correct folder structure
+          mv $(dirname $TEX_FILE)/$(basename $TEX_FILE .tex).pdf PDF/$(basename $TEX_DIR)/  # Move the generated PDF to the correct folder structure
 
       # Commit and push the PDF folder to the main branch
       - name: Commit and push PDF to main
