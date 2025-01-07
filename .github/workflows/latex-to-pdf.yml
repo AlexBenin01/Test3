@@ -43,16 +43,15 @@ jobs:
           pdflatex -shell-escape -interaction=nonstopmode -file-line-error 2024-12-10.tex
           pdflatex -shell-escape -interaction=nonstopmode -file-line-error 2024-12-10.tex  # Seconda compilazione per risolvere i riferimenti e la numerazione
 
-      # Create the PDF folder and move the file there
-      - name: Move PDF to PDF folder
+      # Create the corresponding folder structure in PDF and move the file there
+      - name: Create PDF folder structure and move PDF
         run: |
-          mkdir -p 2024-12-10/PDF  # Create the PDF directory if it doesn't exist
-          mv 2024-12-10/2024-12-10.pdf 2024-12-10/PDF/  # Move the generated PDF to the PDF folder
+          mkdir -p PDF/2024-12-10  # Create the corresponding folder inside PDF
+          mv 2024-12-10/2024-12-10.pdf PDF/2024-12-10/  # Move the generated PDF to the correct folder structure
 
       # Commit and push the PDF folder to the main branch
       - name: Commit and push PDF to main
         run: |
-          cd 2024-12-10  # Naviga nella cartella 2024-12-10
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add PDF/
@@ -66,4 +65,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pdf
-          path: 2024-12-10/PDF/2024-12-10.pdf
+          path: PDF/2024-12-10/2024-12-10.pdf
