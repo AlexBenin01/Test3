@@ -1,88 +1,93 @@
 name: Build PDF
 
-on: 
+on:
   push:
     branches:
-      - main
+      - main  # Trigger this action on push to main
   pull_request:
     branches:
-      - main
+      - main  # Trigger this action on pull request to main
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
 
     steps:
-      # Checkout code
+      # Checkout code with permissions to push changes
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true  # Ensures the token is available for push
 
-      # Install TeX Live and required packages
+      # Install TeX Live and required packages, including Italian support
       - name: Install TeX Live with Italian support
         run: |
           sudo apt-get update
           sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
 
-      # Install Inkscape
+      # Install Inkscape for SVG to PDF conversion
       - name: Install Inkscape
-        run: sudo apt-get install -y inkscape
-
-      # Detect folder with .tex file
-      - name: Detect folder and validate
-        id: detect-folder
         run: |
-          TEX_FOLDER=$(find . -type d -name "*" -exec test -e "{}/"*.tex \; -print -quit)
-          if [ -z "$TEX_FOLDER" ]; then
-            echo "Error: No folder containing .tex file found."
+          sudo apt-get install -y inkscape
+
+      # Find the main .tex file dynamically
+      - name: Find main .tex file
+        id: find_tex
+        run: |
+          main_tex=$(find . -maxdepth 2 -type f -name "*.tex" | head -n 1)
+          if [ -z "$main_tex" ]; then
+            echo "Error: No .tex file found"
             exit 1
           fi
-          echo "Folder detected: $TEX_FOLDER"
-          echo "folder_name=$TEX_FOLDER" >> $GITHUB_ENV
+          echo "Main TeX file: $main_tex"
+          echo "::set-output name=main_tex::$main_tex"
 
-      # Convert SVG to PDF
+      # Extract directory and filename from the main TeX file path
+      - name: Extract directory and filename
+        id: extract_info
+        run: |
+          file_dir=$(dirname "${{ steps.find_tex.outputs.main_tex }}")
+          file_name=$(basename "${{ steps.find_tex.outputs.main_tex }}" .tex)
+          echo "File directory: $file_dir"
+          echo "File name: $file_name"
+          echo "::set-output name=file_dir::$file_dir"
+          echo "::set-output name=file_name::$file_name"
+
+      # Convert SVG to PDF before LaTeX compilation (required by svg package)
       - name: Convert SVG to PDF
         run: |
-          FOLDER_NAME=${{ env.folder_name }}
-          if [ -d "$FOLDER_NAME/images" ]; then
-            for SVG in $FOLDER_NAME/images/*.svg; do
-              PDF=${SVG%.svg}.pdf
-              inkscape $SVG --export-filename=$PDF
-            done
-          else
-            echo "No images folder found, skipping SVG to PDF conversion."
-          fi
+          for svg_file in ${{ steps.extract_info.outputs.file_dir }}/images/*.svg; do
+            pdf_file="${svg_file%.svg}.pdf"
+            inkscape "$svg_file" --export-filename="$pdf_file"
+          done
 
-      # Compile LaTeX to PDF
+      # Compile LaTeX with shell escape enabled to allow SVG to PDF conversion
       - name: Compile LaTeX to PDF
         run: |
-          FOLDER_NAME=${{ env.folder_name }}
-          cd $FOLDER_NAME
-          TEX_FILE=$(basename *.tex .tex)
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $TEX_FILE.tex
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $TEX_FILE.tex
+          cd ${{ steps.extract_info.outputs.file_dir }}
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error ${{ steps.extract_info.outputs.file_name }}.tex
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error ${{ steps.extract_info.outputs.file_name }}.tex
 
-      # Create PDF folder structure and move PDF
+      # Create the corresponding folder structure in PDF and move the file there
       - name: Create PDF folder structure and move PDF
         run: |
-          FOLDER_NAME=${{ env.folder_name }}
-          TEX_FILE=$(basename $FOLDER_NAME/*.tex .tex)
-          mkdir -p PDF/$FOLDER_NAME
-          mv $FOLDER_NAME/$TEX_FILE.pdf PDF/$FOLDER_NAME/
+          mkdir -p PDF/${{ steps.extract_info.outputs.file_name }}
+          mv ${{ steps.extract_info.outputs.file_dir }}/${{ steps.extract_info.outputs.file_name }}.pdf PDF/${{ steps.extract_info.outputs.file_name }}/
 
-      # Commit and push PDF to main
+      # Commit and push the PDF folder to the main branch
       - name: Commit and push PDF to main
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add PDF/
-          git commit -m "Add PDF output for ${{ env.folder_name }}"
+          git commit -m "Add PDF output to main"
           git push origin main
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub token to authenticate the push
 
-      # Upload PDF as artifact
+      # Upload PDF as artifact using v4
       - name: Upload PDF as artifact
         uses: actions/upload-artifact@v4
         with:
           name: pdf
-          path: PDF/${{ env.folder_name }}/*.pdf
+          path: PDF/${{ steps.extract_info.outputs.file_name }}/${{ steps.extract_info.outputs.file_name }}.pdf
