@@ -39,7 +39,9 @@ jobs:
       # Compile LaTeX with shell escape enabled to allow SVG to PDF conversion
       - name: Compile LaTeX to PDF
         run: |
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error 2024-12-10.tex
+         pdflatex -shell-escape -interaction=nonstopmode -file-line-error 2024-12-10.tex
+         pdflatex -shell-escape -interaction=nonstopmode -file-line-error 2024-12-10.tex  # Seconda compilazione per risolvere i riferimenti e la numerazione
+
 
       # Create the PDF folder and move the file there
       - name: Move PDF to PDF folder
