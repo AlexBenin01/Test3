@@ -76,13 +76,13 @@ jobs:
             pdf_file="${svg_file%.svg}.pdf"
             inkscape "$svg_file" --export-filename="$pdf_file"
           done
-
+      
       # Compile LaTeX to PDF
       - name: Compile LaTeX to PDF
         run: |
           cd "${{ env.LATEST_FOLDER }}"
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename ${{ env.MAIN_TEX }})"
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename ${{ env.MAIN_TEX }})"
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
 
       # Create PDF folder structure and move the file there
       - name: Create PDF folder structure and move PDF
