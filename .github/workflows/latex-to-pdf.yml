@@ -1,4 +1,4 @@
-name: Build PDF
+name: Build Latest PDF
 
 on:
   push:
@@ -30,49 +30,50 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
-      # Find the main .tex file dynamically
-      - name: Find main .tex file
+      # Find the latest folder in the main directory
+      - name: Find latest folder
+        id: find_latest_folder
+        run: |
+          latest_folder=$(ls -td -- */ | head -n 1 | cut -d'/' -f1)
+          if [ -z "$latest_folder" ]; then
+            echo "Error: No folder found in the main directory"
+            exit 1
+          fi
+          echo "Latest folder: $latest_folder"
+          echo "::set-output name=latest_folder::$latest_folder"
+
+      # Find the main .tex file dynamically in the latest folder
+      - name: Find main .tex file in latest folder
         id: find_tex
         run: |
-          main_tex=$(find . -maxdepth 2 -type f -name "*.tex" | head -n 1)
+          main_tex=$(find ${{ steps.find_latest_folder.outputs.latest_folder }} -maxdepth 1 -type f -name "*.tex" | head -n 1)
           if [ -z "$main_tex" ]; then
-            echo "Error: No .tex file found"
+            echo "Error: No .tex file found in the latest folder"
             exit 1
           fi
           echo "Main TeX file: $main_tex"
           echo "::set-output name=main_tex::$main_tex"
 
-      # Extract directory and filename from the main TeX file path
-      - name: Extract directory and filename
-        id: extract_info
-        run: |
-          file_dir=$(dirname "${{ steps.find_tex.outputs.main_tex }}")
-          file_name=$(basename "${{ steps.find_tex.outputs.main_tex }}" .tex)
-          echo "File directory: $file_dir"
-          echo "File name: $file_name"
-          echo "::set-output name=file_dir::$file_dir"
-          echo "::set-output name=file_name::$file_name"
-
       # Convert SVG to PDF before LaTeX compilation (required by svg package)
       - name: Convert SVG to PDF
         run: |
-          for svg_file in ${{ steps.extract_info.outputs.file_dir }}/images/*.svg; do
+          for svg_file in ${{ steps.find_latest_folder.outputs.latest_folder }}/images/*.svg; do
             pdf_file="${svg_file%.svg}.pdf"
             inkscape "$svg_file" --export-filename="$pdf_file"
           done
 
-      # Compile LaTeX with shell escape enabled to allow SVG to PDF conversion
+      # Compile LaTeX to PDF
       - name: Compile LaTeX to PDF
         run: |
-          cd ${{ steps.extract_info.outputs.file_dir }}
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error ${{ steps.extract_info.outputs.file_name }}.tex
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error ${{ steps.extract_info.outputs.file_name }}.tex
+          cd ${{ steps.find_latest_folder.outputs.latest_folder }}
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error ${{ steps.find_tex.outputs.main_tex }}
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error ${{ steps.find_tex.outputs.main_tex }}
 
       # Create the corresponding folder structure in PDF and move the file there
       - name: Create PDF folder structure and move PDF
         run: |
-          mkdir -p PDF/${{ steps.extract_info.outputs.file_name }}
-          mv ${{ steps.extract_info.outputs.file_dir }}/${{ steps.extract_info.outputs.file_name }}.pdf PDF/${{ steps.extract_info.outputs.file_name }}/
+          mkdir -p PDF/${{ steps.find_latest_folder.outputs.latest_folder }}
+          mv ${{ steps.find_latest_folder.outputs.latest_folder }}/*.pdf PDF/${{ steps.find_latest_folder.outputs.latest_folder }}/
 
       # Commit and push the PDF folder to the main branch
       - name: Commit and push PDF to main
@@ -80,7 +81,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add PDF/
-          git commit -m "Add PDF output to main"
+          git commit -m "Add latest PDF output to main"
           git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub token to authenticate the push
@@ -90,4 +91,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pdf
-          path: PDF/${{ steps.extract_info.outputs.file_name }}/${{ steps.extract_info.outputs.file_name }}.pdf
+          path: PDF/${{ steps.find_latest_folder.outputs.latest_folder }}/*.pdf
