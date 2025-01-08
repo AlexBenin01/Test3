@@ -34,8 +34,8 @@ jobs:
       - name: Find latest folder
         id: find_latest_folder
         run: |
-          # Usa ls per ottenere l'ultima directory modificata con una precisione di minuti
-          latest_folder=$(ls -lt --time=modify "src/2 - RTB" | grep -vE "images|contents|PDF" | head -n 1 | awk '{print $NF}')
+          # Usa ls con --time=mtime per ottenere l'ultima directory modificata
+          latest_folder=$(ls -lt --time=mtime "src/2 - RTB" | grep -vE "images|contents|PDF" | head -n 1 | awk '{print $NF}')
           
           # Controlla se la directory è in 'images' o 'contents', in tal caso risali alla cartella principale
           if [[ "$latest_folder" == *"/images"* ]] || [[ "$latest_folder" == *"/contents"* ]]; then
