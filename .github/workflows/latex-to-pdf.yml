@@ -30,13 +30,13 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
-      # Find the latest folder excluding PDF
+      # Find the latest modified folder in src/2 - RTB
       - name: Find latest folder
         id: find_latest_folder
         run: |
-          latest_folder=$(ls -td -- */ | grep -v '^PDF/$' | head -n 1 | cut -d'/' -f1)
+          latest_folder=$(find "src/2 - RTB" -type d -not -path "*/PDF/*" -exec stat --format='%Y %n' {} \; | sort -nr | head -n 1 | awk '{print $2}')
           if [ -z "$latest_folder" ]; then
-            echo "Error: No folder found in the main directory"
+            echo "Error: No folder found in src/2 - RTB"
             exit 1
           fi
           echo "Latest folder: $latest_folder"
@@ -46,7 +46,7 @@ jobs:
       - name: Find main .tex file
         id: find_tex
         run: |
-          main_tex=$(find ${{ env.LATEST_FOLDER }} -maxdepth 1 -type f -name "*.tex" | head -n 1)
+          main_tex=$(find "${{ env.LATEST_FOLDER }}" -maxdepth 1 -type f -name "*.tex" | head -n 1)
           if [ -z "$main_tex" ]; then
             echo "Error: No .tex file found in the latest folder"
             exit 1
@@ -57,7 +57,7 @@ jobs:
       # Convert SVG to PDF
       - name: Convert SVG to PDF
         run: |
-          for svg_file in ${{ env.LATEST_FOLDER }}/images/*.svg; do
+          for svg_file in "${{ env.LATEST_FOLDER }}/images/"*.svg; do
             pdf_file="${svg_file%.svg}.pdf"
             inkscape "$svg_file" --export-filename="$pdf_file"
           done
@@ -65,15 +65,16 @@ jobs:
       # Compile LaTeX to PDF
       - name: Compile LaTeX to PDF
         run: |
-          cd ${{ env.LATEST_FOLDER }}
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $(basename ${{ env.MAIN_TEX }})
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error $(basename ${{ env.MAIN_TEX }})
+          cd "${{ env.LATEST_FOLDER }}"
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename ${{ env.MAIN_TEX }})"
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename ${{ env.MAIN_TEX }})"
 
       # Create PDF folder structure and move the file there
       - name: Create PDF folder structure and move PDF
         run: |
-          mkdir -p PDF/${{ env.LATEST_FOLDER }}
-          mv ${{ env.LATEST_FOLDER }}/*.pdf PDF/${{ env.LATEST_FOLDER }}/
+          pdf_output_dir="PDF/${{ env.LATEST_FOLDER }}"
+          mkdir -p "$pdf_output_dir"
+          mv "${{ env.LATEST_FOLDER }}"/*.pdf "$pdf_output_dir/"
 
       # Commit and push PDF to main
       - name: Commit and push PDF to main
