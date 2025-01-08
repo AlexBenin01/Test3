@@ -1,9 +1,7 @@
 name: LaTeX to PDF
 
 on:
-  push:
-    branches:
-      - main
+  pull_request:
     paths:
       - 'src/2 - RTB/**'
 
@@ -18,14 +16,14 @@ jobs:
     - name: Get the newly added folder
       id: new_folder
       run: |
-        # Ottieni l'ultimo commit e cerca le nuove cartelle
-        new_folder=$(git diff --name-only HEAD~1 | grep '^src/2 - RTB/' | sed 's|/.*||' | sort | uniq)
+        # Estrai il percorso della cartella dalla pull request
+        new_folder="${{ github.event.pull_request.head.ref }}"
         echo "NEW_FOLDER=$new_folder" >> $GITHUB_ENV
 
     - name: Compile LaTeX to PDF
       run: |
         # Usa la cartella appena aggiunta
-        latex_folder="${{ env.NEW_FOLDER }}"
+        latex_folder="src/2 - RTB/$new_folder"
         
         # Trova il file .tex più recente in questa cartella
         main_tex=$(find "$latex_folder" -type f -name "*.tex" | head -n 1)
