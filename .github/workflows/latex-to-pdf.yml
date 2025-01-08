@@ -1,42 +1,15 @@
-name: Build Latest PDF
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      # Checkout code
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          persist-credentials: true
-
-      # Install TeX Live and required packages
-      - name: Install TeX Live with Italian support
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
-
-      # Install Inkscape
-      - name: Install Inkscape
-        run: |
-          sudo apt-get install -y inkscape
-
       # Trova la cartella più recente
       - name: Find latest folder
         id: find_latest_folder
         run: |
-          latest_folder=$(find "src/2 - RTB" -type d -not -path "*/PDF/*" -not -path "*/images/*" -not -path "*/contents/*" -exec stat --format='%Y-%m-%d %H:%M:%S %n' {} \; | sort -nr | head -n 1 | awk '{print $2}')
-      
-          # Controlla se la cartella trovata è dentro 'images' o 'contents', in tal caso, scende di una cartella
+          echo "Starting to find the latest folder"
+          # Comando migliorato per trovare la cartella più recente
+          latest_folder=$(find "src/2 - RTB" -type d -not -path "*/PDF/*" -not -path "*/images/*" -not -path "*/contents/*" -exec stat --format='%Y %n' {} \; | sort -nr | head -n 1 | awk '{print $2}')
+          
+          # Debugging per stampare il valore di latest_folder
+          echo "Found latest folder: $latest_folder"
+          
+          # Se la cartella è dentro 'images' o 'contents', scende di una cartella
           if [[ "$latest_folder" == *"/images"* ]] || [[ "$latest_folder" == *"/contents"* ]]; then
             echo "The latest modification is inside 'images' or 'contents'. Using the parent folder instead."
             latest_folder=$(dirname "$latest_folder")
@@ -60,6 +33,8 @@ jobs:
             exit 1
           fi
 
+          echo "Searching for main .tex file in folder: ${{ env.LATEST_FOLDER }}"
+
           main_tex=$(find "${{ env.LATEST_FOLDER }}" -type f -not -path "*/images/*" -not -path "*/contents/*" -name "*.tex" | sort -nr | head -n 1)
           
           if [ -z "$main_tex" ]; then
@@ -69,44 +44,3 @@ jobs:
           
           echo "Main TeX file: $main_tex"
           echo "MAIN_TEX=$main_tex" >> $GITHUB_ENV
-
-
-      # Convert SVG to PDF
-      - name: Convert SVG to PDF
-        run: |
-          for svg_file in "${{ env.LATEST_FOLDER }}/images/"*.svg; do
-            pdf_file="${svg_file%.svg}.pdf"
-            inkscape "$svg_file" --export-filename="$pdf_file"
-          done
-
-      # Compile LaTeX to PDF
-      - name: Compile LaTeX to PDF
-        run: |
-          cd "${{ env.LATEST_FOLDER }}"
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
-
-      # Create PDF folder structure and move the file there
-      - name: Create PDF folder structure and move PDF
-        run: |
-          pdf_output_dir="PDF/${{ env.LATEST_FOLDER }}"
-          mkdir -p "$pdf_output_dir"
-          mv "${{ env.LATEST_FOLDER }}"/*.pdf "$pdf_output_dir/"
-
-      # Commit and push PDF to main
-      - name: Commit and push PDF to main
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add PDF/
-          git commit -m "Add latest PDF output to main"
-          git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Upload PDF as artifact
-      - name: Upload PDF as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pdf
-          path: PDF/${{ env.LATEST_FOLDER }}/*.pdf
