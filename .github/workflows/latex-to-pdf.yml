@@ -1,105 +1,53 @@
-name: Build Latest PDF
+name: Show Last Modified Path
 
 on:
   pull_request:
     branches:
       - main
+    types: [opened, synchronize, reopened]
 
 jobs:
-  build:
+  check-modifications:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout del codice
+      # Step 1: Checkout del codice
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Ottieni i commit base e head della PR
-      - name: Get commits
-        id: get_commits
-        run: |
-          echo "Base commit: ${{ github.event.pull_request.base.sha }}"
-          echo "Head commit: ${{ github.event.pull_request.head.sha }}"
-        
-      # Trova le cartelle modificate nella pull request
-      - name: Find modified folders
-        id: find_modified_folders
+      # Step 2: Recupera i commit base e head dalla pull request
+      - name: Get commit SHA from PR
+        id: pr_commits
         run: |
           base_commit="${{ github.event.pull_request.base.sha }}"
           head_commit="${{ github.event.pull_request.head.sha }}"
+          echo "Base commit: $base_commit"
+          echo "Head commit: $head_commit"
+          echo "::set-output name=base_commit::$base_commit"
+          echo "::set-output name=head_commit::$head_commit"
 
-          # Troviamo tutte le cartelle modificate nella PR
-          modified_folders=$(git diff --name-only "$base_commit" "$head_commit" | \
+      # Step 3: Trova le cartelle modificate
+      - name: Find modified files and directories
+        id: find_modified_files
+        run: |
+          # Ottieni il diff tra i due commit
+          modified_folders=$(git diff --name-only ${{ steps.pr_commits.outputs.base_commit }} ${{ steps.pr_commits.outputs.head_commit }} | \
                               grep "^src/2 - RTB" | \
                               sed 's|/[^/]*$||' | \
                               sort -u)
-
-          # Se ci sono più cartelle modificate o nessuna, error
-          if [ $(echo "$modified_folders" | wc -l) -ne 1 ]; then
-            echo "Error: Multiple or no folders modified. Expected exactly one folder."
-            exit 1
-          fi
-
-          # Prendi la cartella principale
-          latest_folder=$(echo "$modified_folders" | head -n 1)
-
-          # Se la cartella è dentro 'images' o 'contents', risali di una cartella
-          if [[ "$latest_folder" == *"/images"* ]] || [[ "$latest_folder" == *"/contents"* ]]; then
-            echo "The latest modification is inside 'images' or 'contents'. Using the parent folder instead."
-            latest_folder=$(dirname "$latest_folder")
-          fi
-
-          # Verifica che la cartella principale non sia vuota
-          if [ -z "$latest_folder" ]; then
-            echo "Error: No modified folder found."
-            exit 1
-          fi
-
-          echo "Latest folder: $latest_folder"
-          echo "LATEST_FOLDER=$latest_folder" >> $GITHUB_ENV
-
-      # Trova il file principale .tex
-      - name: Find main .tex file
-        id: find_tex_file
-        run: |
-          latex_project_folder=$(find "${{ env.LATEST_FOLDER }}" -type f -name "*.tex" | head -n 1)
-
-          if [ -z "$latex_project_folder" ]; then
-            echo "Error: No LaTeX project folder found in $LATEST_FOLDER"
-            exit 1
-          fi
-
-          echo "Main .tex file: $latex_project_folder"
-          echo "MAIN_TEX=$latex_project_folder" >> $GITHUB_ENV
           
-      # Compilazione PDF LaTeX
-      - name: Compile LaTeX to PDF
-        run: |
-          cd "${{ env.LATEST_FOLDER }}"
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
-          
-      # Creazione della struttura PDF e spostamento del PDF
-      - name: Create PDF folder structure and move PDF
-        run: |
-          pdf_output_dir="PDF/${{ env.LATEST_FOLDER }}"
-          mkdir -p "$pdf_output_dir"
-          mv "${{ env.LATEST_FOLDER }}"/*.pdf "$pdf_output_dir/"
+          # Se non c'è nessun risultato, mostra un errore
+          if [ -z "$modified_folders" ]; then
+            echo "Error: No modified paths found in the PR."
+            exit 1
+          fi
 
-      # Commit e push del PDF generato
-      - name: Commit and push PDF to main
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add PDF/
-          git commit -m "Add latest PDF output to main"
-          git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Mostra l'ultimo percorso modificato
+          latest_folder=$(echo "$modified_folders" | tail -n 1)
+          echo "Latest modified path: $latest_folder"
+          echo "::set-output name=latest_folder::$latest_folder"
 
-      # Upload del PDF come artefatto
-      - name: Upload PDF as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pdf
-          path: PDF/${{ env.LATEST_FOLDER }}/*.pdf
+      # Step 4: Visualizza l'ultimo percorso modificato
+      - name: Display last modified path
+        run: |
+          echo "The last modified path in this pull request is: ${{ steps.find_modified_files.outputs.latest_folder }}"
