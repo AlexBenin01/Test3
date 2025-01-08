@@ -1,53 +1,30 @@
-name: Show Last Modified Path
+name: Get Last Modified File
 
 on:
   pull_request:
     branches:
       - main
-    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read       # Permette di leggere il codice del repository
+  pull-requests: read  # Permette di leggere le informazioni della pull request
 
 jobs:
-  check-modifications:
+  get-last-modified-file:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout del codice
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout the code
+      uses: actions/checkout@v3
 
-      # Step 2: Recupera i commit base e head dalla pull request
-      - name: Get commit SHA from PR
-        id: pr_commits
-        run: |
-          base_commit="${{ github.event.pull_request.base.sha }}"
-          head_commit="${{ github.event.pull_request.head.sha }}"
-          echo "Base commit: $base_commit"
-          echo "Head commit: $head_commit"
-          echo "::set-output name=base_commit::$base_commit"
-          echo "::set-output name=head_commit::$head_commit"
+    - name: Get the last modified file
+      run: |
+        git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
+        changed_files=$(git diff --name-only origin/main...HEAD)
+        last_modified_file=$(echo "$changed_files" | tail -n 1)
+        echo "Last modified file or folder: $last_modified_file"
+        echo "last_modified_file=$last_modified_file" >> $GITHUB_ENV
 
-      # Step 3: Trova le cartelle modificate
-      - name: Find modified files and directories
-        id: find_modified_files
-        run: |
-          # Ottieni il diff tra i due commit della pull request
-          modified_folders=$(git diff --name-only ${{ steps.pr_commits.outputs.base_commit }} ${{ steps.pr_commits.outputs.head_commit }} | \
-                              grep "^src/2 - RTB" | \
-                              sed 's|/[^/]*$||' | \
-                              sort -u)
-          
-          # Se non c'è nessun risultato, mostra un errore
-          if [ -z "$modified_folders" ]; then
-            echo "Error: No modified paths found in the PR."
-            exit 1
-          fi
-
-          # Mostra l'ultimo percorso modificato
-          latest_folder=$(echo "$modified_folders" | tail -n 1)
-          echo "Latest modified path: $latest_folder"
-          echo "::set-output name=latest_folder::$latest_folder"
-
-      # Step 4: Visualizza l'ultimo percorso modificato
-      - name: Display last modified path
-        run: |
-          echo "The last modified path in this pull request is: ${{ steps.find_modified_files.outputs.latest_folder }}"
+    - name: Use last modified file output
+      run: |
+        echo "The last modified file is: ${{ env.last_modified_file }}"
