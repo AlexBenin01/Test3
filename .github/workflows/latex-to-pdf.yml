@@ -30,7 +30,7 @@ jobs:
       - name: Find modified files and directories
         id: find_modified_files
         run: |
-          # Ottieni il diff tra i due commit
+          # Ottieni il diff tra i due commit della pull request
           modified_folders=$(git diff --name-only ${{ steps.pr_commits.outputs.base_commit }} ${{ steps.pr_commits.outputs.head_commit }} | \
                               grep "^src/2 - RTB" | \
                               sed 's|/[^/]*$||' | \
