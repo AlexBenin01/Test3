@@ -30,23 +30,26 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
-      # Find latest modified .tex file and adjust to main folder
+      # Find latest modified .tex file and its folder
       - name: Find latest .tex file
         id: find_latest_tex
         run: |
-          # Trova il file .tex modificato più recentemente
-          latest_tex=$(find "src/2 - RTB" -type f -name "*.tex" -exec stat --format='%Y %n' "{}" \; | sort -nr | head -n 1 | awk '{$1=""; print substr($0,2)}')
+          # Cerca il file .tex più recente
+          latest_tex=$(find "src/2 - RTB" -type f -name "*.tex" \
+            -exec stat --format='%Y %n' "{}" \; | \
+            sort -nr | awk 'NR==1 {print $2}')
 
-          # Risali alla directory principale del progetto
-          if [ -n "$latest_tex" ]; then
-            latest_folder=$(dirname "$latest_tex")
-            while [[ "$latest_folder" == *"/contents"* ]] || [[ "$latest_folder" == *"/images"* ]]; do
-              latest_folder=$(dirname "$latest_folder")
-            done
-          else
+          # Controlla se il file è stato trovato
+          if [ -z "$latest_tex" ]; then
             echo "Error: No .tex file found in src/2 - RTB"
             exit 1
           fi
+
+          # Risali alla directory principale del progetto
+          latest_folder=$(dirname "$latest_tex")
+          while [[ "$latest_folder" == *"/images"* ]] || [[ "$latest_folder" == *"/contents"* ]]; do
+            latest_folder=$(dirname "$latest_folder")
+          done
 
           echo "Main TeX file: $latest_tex"
           echo "Latest folder: $latest_folder"
@@ -56,10 +59,13 @@ jobs:
       # Convert SVG to PDF
       - name: Convert SVG to PDF
         run: |
-          for svg_file in "${{ env.LATEST_FOLDER }}/images/"*.svg; do
-            pdf_file="${svg_file%.svg}.pdf"
-            inkscape "$svg_file" --export-filename="$pdf_file"
-          done
+          if [ -d "${{ env.LATEST_FOLDER }}/images" ]; then
+            for svg_file in "${{ env.LATEST_FOLDER }}/images/"*.svg; do
+              [ -e "$svg_file" ] || continue  # Skip if no SVG files exist
+              pdf_file="${svg_file%.svg}.pdf"
+              inkscape "$svg_file" --export-filename="$pdf_file"
+            done
+          fi
 
       # Compile LaTeX to PDF
       - name: Compile LaTeX to PDF
