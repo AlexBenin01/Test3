@@ -17,10 +17,33 @@ jobs:
     - name: Checkout the code
       uses: actions/checkout@v3
 
-    - name: Get the last modified file
+    - name: Fetch the pull request branch
       run: |
-        git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
-        changed_files=$(git diff --name-only origin/main...HEAD)
+        echo "Fetching the pull request branch..."
+        git fetch origin pull/${{ github.event.pull_request.number }}/head:pr-branch || { echo 'Git fetch failed'; exit 1; }
+
+    - name: Check if PR branch exists
+      run: |
+        echo "Checking if PR branch 'pr-branch' exists..."
+        if git show-ref --quiet refs/heads/pr-branch; then
+          echo "Branch exists"
+        else
+          echo "Branch not found! Exiting."
+          exit 1
+        fi
+
+    - name: Get modified files between PR branch and main
+      run: |
+        echo "Getting the list of modified files between PR branch and main..."
+        changed_files=$(git diff --name-only origin/main...pr-branch)
+
+        # Se non ci sono file modificati, esci con un errore
+        if [ -z "$changed_files" ]; then
+          echo "No files modified in the pull request!"
+          exit 1
+        fi
+
+        # Estrai l'ultimo file modificato
         last_modified_file=$(echo "$changed_files" | tail -n 1)
         echo "Last modified file or folder: $last_modified_file"
         echo "last_modified_file=$last_modified_file" >> $GITHUB_ENV
