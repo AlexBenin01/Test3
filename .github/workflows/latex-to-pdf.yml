@@ -30,24 +30,20 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
-            # Trova la cartella più recente
+      # Find the latest modified folder in src/2 - RTB, excluding PDF, images, and contents directories
       - name: Find latest folder
         id: find_latest_folder
         run: |
-          echo "Starting to find the latest folder"
-          # Comando migliorato per trovare la cartella più recente
-          latest_folder=$(find "src/2 - RTB" -type d -not -path "*/PDF/*" -not -path "*/images/*" -not -path "*/contents/*" -exec stat --format='%Y %n' {} \; | sort -nr | head -n 1 | awk '{print $2}')
+          # Usa ls per ottenere l'ultima directory modificata con una precisione di minuti
+          latest_folder=$(ls -lt --time=modify "src/2 - RTB" | grep -vE "images|contents|PDF" | head -n 1 | awk '{print $NF}')
           
-          # Debugging per stampare il valore di latest_folder
-          echo "Found latest folder: $latest_folder"
-          
-          # Se la cartella è dentro 'images' o 'contents', scende di una cartella
+          # Controlla se la directory è in 'images' o 'contents', in tal caso risali alla cartella principale
           if [[ "$latest_folder" == *"/images"* ]] || [[ "$latest_folder" == *"/contents"* ]]; then
             echo "The latest modification is inside 'images' or 'contents'. Using the parent folder instead."
             latest_folder=$(dirname "$latest_folder")
           fi
 
-          # Se non è stata trovata nessuna cartella valida, fermati
+          # Se non viene trovata nessuna cartella, termina il processo
           if [ -z "$latest_folder" ]; then
             echo "Error: No valid folder found in src/2 - RTB"
             exit 1
@@ -56,28 +52,17 @@ jobs:
           echo "Latest folder: $latest_folder"
           echo "LATEST_FOLDER=$latest_folder" >> $GITHUB_ENV
 
-      # Trova il file .tex principale nella cartella più recente
+      # Find main .tex file in the latest folder, excluding images and contents directories
       - name: Find main .tex file
         id: find_tex
         run: |
-          if [ -z "${{ env.LATEST_FOLDER }}" ]; then
-            echo "Error: LATEST_FOLDER is empty"
-            exit 1
-          fi
-
-          echo "Searching for main .tex file in folder: ${{ env.LATEST_FOLDER }}"
-
-          main_tex=$(find "${{ env.LATEST_FOLDER }}" -type f -not -path "*/images/*" -not -path "*/contents/*" -name "*.tex" | sort -nr | head -n 1)
-          
+          main_tex=$(find "${{ env.LATEST_FOLDER }}" -type f -not -path "*/images/*" -not -path "*/contents/*" -name "*.tex" | head -n 1)
           if [ -z "$main_tex" ]; then
             echo "Error: No .tex file found in the latest folder"
             exit 1
           fi
-          
           echo "Main TeX file: $main_tex"
           echo "MAIN_TEX=$main_tex" >> $GITHUB_ENV
-
-
 
       # Convert SVG to PDF
       - name: Convert SVG to PDF
