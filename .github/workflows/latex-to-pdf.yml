@@ -30,38 +30,28 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
-      # Find the latest modified folder in src/2 - RTB and adjust to the main folder
-      - name: Find latest folder
-        id: find_latest_folder
+      # Find latest modified .tex file and adjust to main folder
+      - name: Find latest .tex file
+        id: find_latest_tex
         run: |
-          # Trova la directory modificata più di recente
-          latest_folder=$(find "src/2 - RTB" -type d -exec stat --format='%Y %n' "{}" \; | sort -nr | head -n 1 | awk '{$1=""; print substr($0,2)}')
+          # Trova il file .tex modificato più recentemente
+          latest_tex=$(find "src/2 - RTB" -type f -name "*.tex" -exec stat --format='%Y %n' "{}" \; | sort -nr | head -n 1 | awk '{$1=""; print substr($0,2)}')
 
-          # Risale alla directory principale in caso di modifiche in contents o images
-          while [[ "$latest_folder" == *"/contents"* ]] || [[ "$latest_folder" == *"/images"* ]]; do
-            latest_folder=$(dirname "$latest_folder")
-          done
-
-          # Controlla che latest_folder non sia vuoto
-          if [ -z "$latest_folder" ]; then
-            echo "Error: No valid folder found in src/2 - RTB"
+          # Risali alla directory principale del progetto
+          if [ -n "$latest_tex" ]; then
+            latest_folder=$(dirname "$latest_tex")
+            while [[ "$latest_folder" == *"/contents"* ]] || [[ "$latest_folder" == *"/images"* ]]; do
+              latest_folder=$(dirname "$latest_folder")
+            done
+          else
+            echo "Error: No .tex file found in src/2 - RTB"
             exit 1
           fi
 
+          echo "Main TeX file: $latest_tex"
           echo "Latest folder: $latest_folder"
           echo "LATEST_FOLDER=$latest_folder" >> $GITHUB_ENV
-
-      # Find main .tex file in the latest folder
-      - name: Find main .tex file
-        id: find_tex
-        run: |
-          main_tex=$(find "${{ env.LATEST_FOLDER }}" -type f -not -path "*/images/*" -not -path "*/contents/*" -name "*.tex" | head -n 1)
-          if [ -z "$main_tex" ]; then
-            echo "Error: No .tex file found in the latest folder"
-            exit 1
-          fi
-          echo "Main TeX file: $main_tex"
-          echo "MAIN_TEX=$main_tex" >> $GITHUB_ENV
+          echo "MAIN_TEX=$latest_tex" >> $GITHUB_ENV
 
       # Convert SVG to PDF
       - name: Convert SVG to PDF
