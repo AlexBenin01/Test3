@@ -34,13 +34,14 @@ jobs:
       - name: Find latest folder
         id: find_latest_folder
         run: |
-          latest_folder=$(find "src/2 - RTB" -type d -not -path "*/PDF/*" -exec stat --format='%Y%n' "{}" \; | sort -nr | head -n 1 | cut -d' ' -f2-)
+          latest_folder=$(find "src/2 - RTB" -type d -not -path "*/PDF/*" -not -path "*/images/*" -not -path "*/contents/*" -exec stat --format='%Y%n' "{}" \; | sort -nr | head -n 1 | cut -d' ' -f2-)
           if [ -z "$latest_folder" ]; then
             echo "Error: No folder found in src/2 - RTB"
             exit 1
           fi
           echo "Latest folder: $latest_folder"
           echo "LATEST_FOLDER=$latest_folder" >> $GITHUB_ENV
+
 
 
 
@@ -55,6 +56,7 @@ jobs:
           fi
           echo "Main TeX file: $main_tex"
           echo "MAIN_TEX=$main_tex" >> $GITHUB_ENV
+
 
 
 
