@@ -22,6 +22,11 @@ jobs:
         echo "Fetching the pull request branch..."
         git fetch origin pull/${{ github.event.pull_request.number }}/head:pr-branch || { echo 'Git fetch failed'; exit 1; }
 
+    - name: Ensure `main` branch is fetched
+      run: |
+        echo "Fetching all branches to ensure 'origin/main' is available..."
+        git fetch --all || { echo 'Git fetch --all failed'; exit 1; }
+
     - name: Check if PR branch exists
       run: |
         echo "Checking if PR branch 'pr-branch' exists..."
@@ -35,8 +40,9 @@ jobs:
     - name: Get modified files between PR branch and main
       run: |
         echo "Getting the list of modified files between PR branch and main..."
+        # Confronta la PR con main, accertandosi che 'origin/main' sia disponibile
         changed_files=$(git diff --name-only origin/main...pr-branch)
-
+        
         # Se non ci sono file modificati, esci con un errore
         if [ -z "$changed_files" ]; then
           echo "No files modified in the pull request!"
