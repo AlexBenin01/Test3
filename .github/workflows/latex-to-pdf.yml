@@ -2,6 +2,7 @@ name: Build Latest PDF
 
 on:
   pull_request:
+    types: [closed]
     branches:
       - main
 
@@ -27,41 +28,47 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
-      # Find the latest modified file in src/, excluding images and contents directories
-      - name: Find the most recently modified file under src/
-        id: find_latest_file
+      # Find the modified LaTeX project folder
+      - name: Find the modified LaTeX project folder
+        id: find_latex_folder
         run: |
-          # Mostra l'output del log git per il debug
-          echo "Running git log to find the most recently modified file..."
-          git log --name-only --pretty=format:"%H %ad" --date=iso
-          
-          # Trova il file più recentemente modificato sotto src/
-          latest_file=$(git log --name-only --pretty=format:"%H %ad" --date=iso | grep "^src/" | sort -r | head -n 1 | awk '{$1=""; print substr($0,2)}')
-      
-          # Mostra il file trovato per debug
-          echo "Latest file found: $latest_file"
-      
-          # Se il file si trova nelle cartelle 'images' o 'contents', risali alla cartella principale
-          if [[ "$latest_file" == *"/images"* ]] || [[ "$latest_file" == *"/contents"* ]]; then
-            echo "The latest modification is inside 'images' or 'contents'. Using the parent folder instead."
-            latest_file=$(dirname "$latest_file")
-          fi
-      
-          # Se non è stato trovato alcun file, fermiamo il processo
-          if [ -z "$latest_file" ]; then
-            echo "Error: No valid file found in src/"
+          # Elenco delle cartelle modificate nella pull request
+          modified_folders=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | \
+                              grep "^src/2 - RTB" | \
+                              sed 's|/[^/]*$||' | \
+                              sort -u)
+
+          # Se sono state trovate più di una cartella, errore
+          if [ $(echo "$modified_folders" | wc -l) -ne 1 ]; then
+            echo "Error: Multiple or no folders modified. Expected exactly one folder."
             exit 1
           fi
-      
-          echo "Final latest file or folder: $latest_file"
-          echo "LATEST_FILE=$latest_file" >> $GITHUB_ENV
 
+          # Prendi la cartella modificata
+          latest_folder=$(echo "$modified_folders" | head -n 1)
 
-      # Find main .tex file in the latest folder
+          # Se la cartella è dentro 'images' o 'contents', risali di una cartella
+          if [[ "$latest_folder" == *"/images"* ]] || [[ "$latest_folder" == *"/contents"* ]]; then
+            echo "The latest modification is inside 'images' or 'contents'. Using the parent folder instead."
+            latest_folder=$(dirname "$latest_folder")
+          fi
+
+          # Ora cerchiamo ricorsivamente all'interno della cartella per trovare la struttura LaTeX
+          latex_project_folder=$(find "$latest_folder" -type f -name "*.tex" -exec dirname {} \; | head -n 1)
+
+          if [ -z "$latex_project_folder" ]; then
+            echo "Error: No LaTeX project folder found."
+            exit 1
+          fi
+
+          echo "Latest LaTeX project folder: $latex_project_folder"
+          echo "LATEST_FOLDER=$latex_project_folder" >> $GITHUB_ENV
+
+      # Find the main .tex file inside the project folder
       - name: Find main .tex file
         id: find_tex
         run: |
-          main_tex=$(find "${{ env.LATEST_FILE }}" -type f -name "*.tex" | head -n 1)
+          main_tex=$(find "${{ env.LATEST_FOLDER }}" -type f -name "*.tex" | head -n 1)
           if [ -z "$main_tex" ]; then
             echo "Error: No .tex file found in the latest folder"
             exit 1
@@ -72,7 +79,7 @@ jobs:
       # Convert SVG to PDF
       - name: Convert SVG to PDF
         run: |
-          for svg_file in "${{ env.LATEST_FILE }}/images/"*.svg; do
+          for svg_file in "${{ env.LATEST_FOLDER }}/images/"*.svg; do
             pdf_file="${svg_file%.svg}.pdf"
             inkscape "$svg_file" --export-filename="$pdf_file"
           done
@@ -80,16 +87,16 @@ jobs:
       # Compile LaTeX to PDF
       - name: Compile LaTeX to PDF
         run: |
-          cd "${{ env.LATEST_FILE }}"
+          cd "${{ env.LATEST_FOLDER }}"
           pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
           pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
 
       # Create PDF folder structure and move the file there
       - name: Create PDF folder structure and move PDF
         run: |
-          pdf_output_dir="PDF/${{ env.LATEST_FILE }}"
+          pdf_output_dir="PDF/${{ env.LATEST_FOLDER }}"
           mkdir -p "$pdf_output_dir"
-          mv "${{ env.LATEST_FILE }}"/*.pdf "$pdf_output_dir/"
+          mv "${{ env.LATEST_FOLDER }}"/*.pdf "$pdf_output_dir/"
 
       # Commit and push PDF to main
       - name: Commit and push PDF to main
@@ -107,4 +114,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pdf
-          path: PDF/${{ env.LATEST_FILE }}/*.pdf
+          path: PDF/${{ env.LATEST_FOLDER }}/*.pdf
