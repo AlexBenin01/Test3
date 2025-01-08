@@ -1,45 +1,102 @@
-name: LaTeX to PDF
+name: Build Latest PDF
 
 on:
   pull_request:
-    paths:
-      - 'src/2 - RTB/**'
+    branches:
+      - main
 
 jobs:
-  latex_to_pdf:
+  build:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      # Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
 
-    - name: Get the newly added folder
-      id: new_folder
-      run: |
-        # Estrai il percorso della cartella dalla pull request
-        new_folder="${{ github.event.pull_request.head.ref }}"
-        echo "NEW_FOLDER=$new_folder" >> $GITHUB_ENV
+      # Install TeX Live and required packages
+      - name: Install TeX Live with Italian support
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
 
-    - name: Compile LaTeX to PDF
-      run: |
-        # Usa la cartella appena aggiunta
-        latex_folder="src/2 - RTB/$new_folder"
-        
-        # Trova il file .tex più recente in questa cartella
-        main_tex=$(find "$latex_folder" -type f -name "*.tex" | head -n 1)
-        
-        if [ -z "$main_tex" ]; then
-          echo "Error: No .tex file found in the folder"
-          exit 1
-        fi
-        
-        echo "Main TeX file: $main_tex"
-        
-        # Compilare il file .tex con pdflatex
-        pdflatex "$main_tex"
-        
-        # Crea la cartella PDF nella root directory, se non esiste
-        mkdir -p "./PDF"
-        
-        # Spostare il PDF risultante nella cartella PDF nella root directory
-        mv *.pdf "./PDF/"
+      # Install Inkscape
+      - name: Install Inkscape
+        run: |
+          sudo apt-get install -y inkscape
+
+      # Find the latest modified file in src/, excluding images and contents directories
+      - name: Find latest modified file
+        id: find_latest_file
+        run: |
+          # Find the most recently modified file under src/
+          latest_file=$(git log --name-only --pretty=format:"%H %ad" --date=iso | grep "^src/" | sort -r | head -n 1 | awk '{$1=""; print substr($0,2)}')
+
+          # Check if the latest file is inside 'images' or 'contents', and if so, use the parent folder
+          if [[ "$latest_file" == *"/images"* ]] || [[ "$latest_file" == *"/contents"* ]]; then
+            echo "The latest modification is inside 'images' or 'contents'. Using the parent folder instead."
+            latest_file=$(dirname "$latest_file")
+          fi
+
+          # If no file was found, stop the process
+          if [ -z "$latest_file" ]; then
+            echo "Error: No valid file found in src/"
+            exit 1
+          fi
+
+          echo "Latest file: $latest_file"
+          echo "LATEST_FILE=$latest_file" >> $GITHUB_ENV
+
+      # Find main .tex file in the latest folder
+      - name: Find main .tex file
+        id: find_tex
+        run: |
+          main_tex=$(find "${{ env.LATEST_FILE }}" -type f -name "*.tex" | head -n 1)
+          if [ -z "$main_tex" ]; then
+            echo "Error: No .tex file found in the latest folder"
+            exit 1
+          fi
+          echo "Main TeX file: $main_tex"
+          echo "MAIN_TEX=$main_tex" >> $GITHUB_ENV
+
+      # Convert SVG to PDF
+      - name: Convert SVG to PDF
+        run: |
+          for svg_file in "${{ env.LATEST_FILE }}/images/"*.svg; do
+            pdf_file="${svg_file%.svg}.pdf"
+            inkscape "$svg_file" --export-filename="$pdf_file"
+          done
+
+      # Compile LaTeX to PDF
+      - name: Compile LaTeX to PDF
+        run: |
+          cd "${{ env.LATEST_FILE }}"
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
+
+      # Create PDF folder structure and move the file there
+      - name: Create PDF folder structure and move PDF
+        run: |
+          pdf_output_dir="PDF/${{ env.LATEST_FILE }}"
+          mkdir -p "$pdf_output_dir"
+          mv "${{ env.LATEST_FILE }}"/*.pdf "$pdf_output_dir/"
+
+      # Commit and push PDF to main
+      - name: Commit and push PDF to main
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add PDF/
+          git commit -m "Add latest PDF output to main"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload PDF as artifact
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf
+          path: PDF/${{ env.LATEST_FILE }}/*.pdf
