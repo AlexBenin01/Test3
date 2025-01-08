@@ -30,33 +30,41 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
-      # Find latest modified .tex file and its folder
+      # Find the latest modified .tex file
       - name: Find latest .tex file
         id: find_latest_tex
         run: |
-          # Cerca il file .tex più recente
+          # Cerca il file .tex più recente nella struttura "src/2 - RTB"
           latest_tex=$(find "src/2 - RTB" -type f -name "*.tex" \
             -exec stat --format='%Y %n' "{}" \; | \
             sort -nr | awk 'NR==1 {print $2}')
 
-          # Controlla se il file è stato trovato
+          # Controlla se il file .tex è stato trovato
           if [ -z "$latest_tex" ]; then
             echo "Error: No .tex file found in src/2 - RTB"
             exit 1
           fi
 
-          # Risali alla directory principale del progetto
+          # Risali alla directory principale del progetto (evitando cartelle come images o contents)
           latest_folder=$(dirname "$latest_tex")
           while [[ "$latest_folder" == *"/images"* ]] || [[ "$latest_folder" == *"/contents"* ]]; do
             latest_folder=$(dirname "$latest_folder")
           done
 
-          echo "Main TeX file: $latest_tex"
+          # Verifica che la directory principale contenga almeno un file .tex
+          main_tex=$(find "$latest_folder" -maxdepth 1 -type f -name "*.tex" | head -n 1)
+          if [ -z "$main_tex" ]; then
+            echo "Error: No .tex file found in the folder: $latest_folder"
+            exit 1
+          fi
+
+          # Output per debug e variabili di ambiente
+          echo "Main TeX file: $main_tex"
           echo "Latest folder: $latest_folder"
           echo "LATEST_FOLDER=$latest_folder" >> $GITHUB_ENV
-          echo "MAIN_TEX=$latest_tex" >> $GITHUB_ENV
+          echo "MAIN_TEX=$main_tex" >> $GITHUB_ENV
 
-      # Convert SVG to PDF
+      # Convert SVG to PDF (if any exist)
       - name: Convert SVG to PDF
         run: |
           if [ -d "${{ env.LATEST_FOLDER }}/images" ]; then
