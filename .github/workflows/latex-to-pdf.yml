@@ -2,7 +2,6 @@ name: Build Latest PDF
 
 on:
   pull_request:
-    types: [closed]
     branches:
       - main
 
@@ -11,67 +10,96 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout code
+      # Checkout del codice
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          persist-credentials: true
 
-      # Install TeX Live and required packages
-      - name: Install TeX Live with Italian support
+      # Ottieni i commit base e head della PR
+      - name: Get commits
+        id: get_commits
         run: |
-          sudo apt-get update
-          sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
-
-      # Install Inkscape
-      - name: Install Inkscape
+          echo "Base commit: ${{ github.event.pull_request.base.sha }}"
+          echo "Head commit: ${{ github.event.pull_request.head.sha }}"
+        
+      # Trova le cartelle modificate nella pull request
+      - name: Find modified folders
+        id: find_modified_folders
         run: |
-          sudo apt-get install -y inkscape
-
-      # Find the modified LaTeX project folder
-      - name: Find the modified LaTeX project folder
-        id: find_latex_folder
-        run: |
-         # Usa i commit della PR
           base_commit="${{ github.event.pull_request.base.sha }}"
           head_commit="${{ github.event.pull_request.head.sha }}"
-          
-          # Elenco delle cartelle modificate nella pull request
+
+          # Troviamo tutte le cartelle modificate nella PR
           modified_folders=$(git diff --name-only "$base_commit" "$head_commit" | \
                               grep "^src/2 - RTB" | \
                               sed 's|/[^/]*$||' | \
                               sort -u)
-          
-          # Se sono state trovate più di una cartella, errore
+
+          # Se ci sono più cartelle modificate o nessuna, error
           if [ $(echo "$modified_folders" | wc -l) -ne 1 ]; then
             echo "Error: Multiple or no folders modified. Expected exactly one folder."
             exit 1
           fi
-          
-          # Prendi la cartella modificata
+
+          # Prendi la cartella principale
           latest_folder=$(echo "$modified_folders" | head -n 1)
-          
+
           # Se la cartella è dentro 'images' o 'contents', risali di una cartella
           if [[ "$latest_folder" == *"/images"* ]] || [[ "$latest_folder" == *"/contents"* ]]; then
             echo "The latest modification is inside 'images' or 'contents'. Using the parent folder instead."
             latest_folder=$(dirname "$latest_folder")
           fi
-          
-          # Verifica che latest_folder non sia vuoto
+
+          # Verifica che la cartella principale non sia vuota
           if [ -z "$latest_folder" ]; then
             echo "Error: No modified folder found."
             exit 1
           fi
-          
-          # Ora cerchiamo ricorsivamente all'interno della cartella per trovare la struttura LaTeX
-          latex_project_folder=$(find "$latest_folder" -type f -name "*.tex" | head -n 1)
-          
+
+          echo "Latest folder: $latest_folder"
+          echo "LATEST_FOLDER=$latest_folder" >> $GITHUB_ENV
+
+      # Trova il file principale .tex
+      - name: Find main .tex file
+        id: find_tex_file
+        run: |
+          latex_project_folder=$(find "${{ env.LATEST_FOLDER }}" -type f -name "*.tex" | head -n 1)
+
           if [ -z "$latex_project_folder" ]; then
-            echo "Error: No LaTeX project folder found in $latest_folder"
+            echo "Error: No LaTeX project folder found in $LATEST_FOLDER"
             exit 1
           fi
+
+          echo "Main .tex file: $latex_project_folder"
+          echo "MAIN_TEX=$latex_project_folder" >> $GITHUB_ENV
           
-          echo "Latest LaTeX project folder: $latex_project_folder"
-          echo "LATEST_FOLDER=$(dirname "$latex_project_folder")" >> $GITHUB_ENV
+      # Compilazione PDF LaTeX
+      - name: Compile LaTeX to PDF
+        run: |
+          cd "${{ env.LATEST_FOLDER }}"
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
+          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
           
-                # Altri passi (conversione, compilazione, ecc.)
+      # Creazione della struttura PDF e spostamento del PDF
+      - name: Create PDF folder structure and move PDF
+        run: |
+          pdf_output_dir="PDF/${{ env.LATEST_FOLDER }}"
+          mkdir -p "$pdf_output_dir"
+          mv "${{ env.LATEST_FOLDER }}"/*.pdf "$pdf_output_dir/"
+
+      # Commit e push del PDF generato
+      - name: Commit and push PDF to main
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add PDF/
+          git commit -m "Add latest PDF output to main"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload del PDF come artefatto
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf
+          path: PDF/${{ env.LATEST_FOLDER }}/*.pdf
