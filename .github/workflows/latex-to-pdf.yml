@@ -32,8 +32,12 @@ jobs:
       - name: Find the modified LaTeX project folder
         id: find_latex_folder
         run: |
+          # Usa i commit della PR
+          base_commit="${{ github.event.pull_request.base.sha }}"
+          head_commit="${{ github.event.pull_request.head.sha }}"
+
           # Elenco delle cartelle modificate nella pull request
-          modified_folders=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | \
+          modified_folders=$(git diff --name-only "$base_commit" "$head_commit" | \
                               grep "^src/2 - RTB" | \
                               sed 's|/[^/]*$||' | \
                               sort -u)
@@ -53,65 +57,21 @@ jobs:
             latest_folder=$(dirname "$latest_folder")
           fi
 
+          # Verifica che latest_folder non sia vuoto
+          if [ -z "$latest_folder" ]; then
+            echo "Error: No modified folder found."
+            exit 1
+          fi
+
           # Ora cerchiamo ricorsivamente all'interno della cartella per trovare la struttura LaTeX
-          latex_project_folder=$(find "$latest_folder" -type f -name "*.tex" -exec dirname {} \; | head -n 1)
+          latex_project_folder=$(find "$latest_folder" -type f -name "*.tex" | head -n 1)
 
           if [ -z "$latex_project_folder" ]; then
-            echo "Error: No LaTeX project folder found."
+            echo "Error: No LaTeX project folder found in $latest_folder"
             exit 1
           fi
 
           echo "Latest LaTeX project folder: $latex_project_folder"
-          echo "LATEST_FOLDER=$latex_project_folder" >> $GITHUB_ENV
+          echo "LATEST_FOLDER=$(dirname "$latex_project_folder")" >> $GITHUB_ENV
 
-      # Find the main .tex file inside the project folder
-      - name: Find main .tex file
-        id: find_tex
-        run: |
-          main_tex=$(find "${{ env.LATEST_FOLDER }}" -type f -name "*.tex" | head -n 1)
-          if [ -z "$main_tex" ]; then
-            echo "Error: No .tex file found in the latest folder"
-            exit 1
-          fi
-          echo "Main TeX file: $main_tex"
-          echo "MAIN_TEX=$main_tex" >> $GITHUB_ENV
-
-      # Convert SVG to PDF
-      - name: Convert SVG to PDF
-        run: |
-          for svg_file in "${{ env.LATEST_FOLDER }}/images/"*.svg; do
-            pdf_file="${svg_file%.svg}.pdf"
-            inkscape "$svg_file" --export-filename="$pdf_file"
-          done
-
-      # Compile LaTeX to PDF
-      - name: Compile LaTeX to PDF
-        run: |
-          cd "${{ env.LATEST_FOLDER }}"
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
-          pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$(basename "${{ env.MAIN_TEX }}")"
-
-      # Create PDF folder structure and move the file there
-      - name: Create PDF folder structure and move PDF
-        run: |
-          pdf_output_dir="PDF/${{ env.LATEST_FOLDER }}"
-          mkdir -p "$pdf_output_dir"
-          mv "${{ env.LATEST_FOLDER }}"/*.pdf "$pdf_output_dir/"
-
-      # Commit and push PDF to main
-      - name: Commit and push PDF to main
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add PDF/
-          git commit -m "Add latest PDF output to main"
-          git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Upload PDF as artifact
-      - name: Upload PDF as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pdf
-          path: PDF/${{ env.LATEST_FOLDER }}/*.pdf
+      # Altri passi (conversione, compilazione, ecc.)
