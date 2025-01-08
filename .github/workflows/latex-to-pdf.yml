@@ -32,46 +32,46 @@ jobs:
       - name: Find the modified LaTeX project folder
         id: find_latex_folder
         run: |
-          # Usa i commit della PR
+         # Usa i commit della PR
           base_commit="${{ github.event.pull_request.base.sha }}"
           head_commit="${{ github.event.pull_request.head.sha }}"
-
+          
           # Elenco delle cartelle modificate nella pull request
           modified_folders=$(git diff --name-only "$base_commit" "$head_commit" | \
                               grep "^src/2 - RTB" | \
                               sed 's|/[^/]*$||' | \
                               sort -u)
-
+          
           # Se sono state trovate più di una cartella, errore
           if [ $(echo "$modified_folders" | wc -l) -ne 1 ]; then
             echo "Error: Multiple or no folders modified. Expected exactly one folder."
             exit 1
           fi
-
+          
           # Prendi la cartella modificata
           latest_folder=$(echo "$modified_folders" | head -n 1)
-
+          
           # Se la cartella è dentro 'images' o 'contents', risali di una cartella
           if [[ "$latest_folder" == *"/images"* ]] || [[ "$latest_folder" == *"/contents"* ]]; then
             echo "The latest modification is inside 'images' or 'contents'. Using the parent folder instead."
             latest_folder=$(dirname "$latest_folder")
           fi
-
+          
           # Verifica che latest_folder non sia vuoto
           if [ -z "$latest_folder" ]; then
             echo "Error: No modified folder found."
             exit 1
           fi
-
+          
           # Ora cerchiamo ricorsivamente all'interno della cartella per trovare la struttura LaTeX
           latex_project_folder=$(find "$latest_folder" -type f -name "*.tex" | head -n 1)
-
+          
           if [ -z "$latex_project_folder" ]; then
             echo "Error: No LaTeX project folder found in $latest_folder"
             exit 1
           fi
-
+          
           echo "Latest LaTeX project folder: $latex_project_folder"
           echo "LATEST_FOLDER=$(dirname "$latex_project_folder")" >> $GITHUB_ENV
-
-      # Altri passi (conversione, compilazione, ecc.)
+          
+                # Altri passi (conversione, compilazione, ecc.)
