@@ -50,7 +50,7 @@ jobs:
       - name: Find main .tex file
         id: find_tex
         run: |
-          main_tex=$(find "${{ env.LATEST_FOLDER }}" -maxdepth 1 -type f -name "*.tex" | head -n 1)
+          main_tex=$(find "${{ env.LATEST_FOLDER }}" -type f -not -path "*/images/*" -not -path "*/contents/*" -name "*.tex" | head -n 1)
           if [ -z "$main_tex" ]; then
             echo "Error: No .tex file found in the latest folder"
             exit 1
