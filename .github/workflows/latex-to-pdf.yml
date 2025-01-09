@@ -68,10 +68,7 @@ jobs:
             cd "$GITHUB_WORKSPACE"
           }
 
-          # Process root directories (Analisi_dei_Requisiti, Norme_di_Progetto)
-          for dir in "$base_dir/Analisi_dei_Requisiti" "$base_dir/Norme_di_Progetto"; do
-            [ -d "$dir" ] && process_latex_project "$dir"
-          done
+          
 
           # Process Verbali (Interni, Esterni)
           for type in "Interni" "Esterni"; do
