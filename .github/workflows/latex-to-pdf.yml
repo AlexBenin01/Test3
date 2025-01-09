@@ -90,53 +90,31 @@ jobs:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     needs: build
-
+  
     steps:
-      # Checkout del branch develop
-      - name: Checkout develop branch
-        uses: actions/checkout@v3
-        with:
-          ref: develop
-          persist-credentials: true
-
-      # Sposta il contenuto della directory PDF in una directory temporanea
-      - name: Prepare PDF content
-        run: |
-          echo "Preparazione del contenuto della directory PDF..."
-          mkdir -p transferred_PDF  # Assicura che la directory temporanea esista
-          if [ -d "PDF" ]; then
-            mv PDF/* transferred_PDF/  # Trasferisce tutto il contenuto della cartella PDF
-            echo "Contenuto trasferito nella directory temporanea."
-          else
-            echo "ERRORE: La directory PDF non esiste."
-            exit 1
-          fi
-
       # Checkout del branch main
       - name: Checkout main branch
         uses: actions/checkout@v3
         with:
           ref: main
           persist-credentials: true
-
-      # Copia il contenuto dalla directory temporanea nel branch main
-      - name: Copy PDF content to main
+  
+      # Trasferimento dei file PDF dal branch develop
+      - name: Transfer PDFs to main branch
         run: |
           echo "Trasferimento dei file PDF nel branch main..."
-          mkdir -p "./2 - RTB"
-          cp -R transferred_PDF/* "./2 - RTB/"
-
-          # Controllo dei file copiati
+          mkdir -p "./2 - RTB" # Assicura che la directory di destinazione esista
+          mv PDF/* "./2 - RTB/" # Sposta tutto il contenuto di PDF nella cartella 2 - RTB
           echo "File trasferiti:"
-          ls -R ./2 - RTB/
-
-      # Commit e push del contenuto nel branch main
+          ls -R "./2 - RTB/"
+  
+      # Commit e push nel branch main
       - name: Commit and push to main
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add ./2 - RTB/
-          git commit -m "Transport PDFs from develop to main"
+          git add .
+          git commit -m "Transport PDFs to main branch"
           git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
