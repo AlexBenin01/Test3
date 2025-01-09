@@ -28,11 +28,11 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
-      # Process Verbali (Interni and Esterni)
-      - name: Compile Verbali LaTeX projects
+      # Process all LaTeX projects
+      - name: Compile all LaTeX projects
         run: |
-          base_dir="src/2 - RTB/Verbali"
-          output_dir="PDF/2 - RTB/Verbali"
+          base_dir="src/2 - RTB"
+          output_dir="PDF/2 - RTB"
           mkdir -p "$output_dir"
 
           # Function to process LaTeX projects
@@ -66,9 +66,14 @@ jobs:
             cd "$GITHUB_WORKSPACE"
           }
 
+          # Process Analisi_dei_Requisiti and Norme_di_Progetto
+          for dir in "$base_dir/Analisi_dei_Requisiti" "$base_dir/Norme_di_Progetto"; do
+            [ -d "$dir" ] && process_latex_project "$dir"
+          done
+
           # Process Verbali (Interni and Esterni)
           for type in "Interni" "Esterni"; do
-            for sub_dir in "$base_dir/$type"/*; do
+            for sub_dir in "$base_dir/Verbali/$type"/*; do
               [ -d "$sub_dir" ] && process_latex_project "$sub_dir"
             done
           done
@@ -102,7 +107,7 @@ jobs:
       # Move PDFs to main structure
       - name: Prepare PDFs for main
         run: |
-          for pdf_path in PDF/2\ -\ RTB/Verbali/*; do
+          for pdf_path in PDF/2\ -\ RTB/*; do
             target_path=$(echo "$pdf_path" | sed 's|PDF/||')
             mkdir -p "$(dirname "$target_path")"
             mv "$pdf_path" "$target_path"
