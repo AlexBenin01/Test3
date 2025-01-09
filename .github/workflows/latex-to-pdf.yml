@@ -90,25 +90,34 @@ jobs:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     needs: build
-
+  
     steps:
-      # Checkout code
+      # Checkout del branch main
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           ref: main
           persist-credentials: true
-
-      # Copy files from PDF to main structure
-      - name: Copy files to main
+  
+      # Copia i file da PDF/2 - RTB alle directory di destinazione nel main
+      - name: Copy PDF files to main
         run: |
-          temp_dir="temp_transport"
-          mkdir -p "$temp_dir"
-          cp -R PDF/* "$temp_dir/"
-          cp -R "$temp_dir/2 - RTB"/* ./
-          rm -rf "$temp_dir"
-
-      # Commit files to main
+          echo "Trasferimento dei file PDF..."
+          
+          # Verifica che la directory PDF/2 - RTB esista
+          if [ -d "PDF/2 - RTB" ]; then
+            # Copia ricorsiva dei file PDF e delle sottodirectory nella struttura di destinazione nel main
+            cp -R "PDF/2 - RTB/"* "./2 - RTB/"
+            
+            # Controllo che i file siano stati copiati
+            echo "File trasferiti:"
+            ls -R ./2 - RTB/
+          else
+            echo "ERRORE: La directory PDF/2 - RTB non esiste"
+            exit 1
+          fi
+  
+      # Commit dei file nel branch main
       - name: Commit and push to main
         run: |
           git config --global user.name "github-actions[bot]"
