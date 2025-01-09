@@ -85,47 +85,44 @@ jobs:
           git push origin develop
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  transport:
-    needs: build
-    runs-on: ubuntu-latest
-  
-    steps:
-      # Checkout code
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          persist-credentials: true
-          ref: main
-  
-      # Copy PDFs from develop to main
-      - name: Transport PDFs to main
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Fetch the latest changes from develop without merging
-          git fetch origin develop:develop
-          
-          # Se la directory 'PDF' esiste in develop
-          if [ -d "PDF" ]; then
-            # Trova tutti i file PDF sotto 'PDF/2 - RTB/' e spostali nella struttura di destinazione in '2 - RTB/'
-            find PDF/2\ -\ RTB/ -type f -name "*.pdf" | while read pdf_path; do
-              # Calcola il percorso relativo rispetto alla cartella 'PDF/'
-              relative_path=$(echo "$pdf_path" | sed 's|PDF/||')
-              # La destinazione diventa la stessa struttura, ma in '2 - RTB/'
-              target_path="2 - RTB/$relative_path"
-              # Crea eventuali cartelle nella destinazione
-              mkdir -p "$(dirname "$target_path")"
-              # Copia il PDF nella nuova destinazione
-              cp "$pdf_path" "$target_path"
-            done
+  transport_to_main:
+      if: github.event.pull_request.merged == true
+      runs-on: ubuntu-latest
+      needs: build
+    
+      steps:
+        # Checkout del branch main
+        - name: Checkout code
+          uses: actions/checkout@v3
+          with:
+            ref: main
+            persist-credentials: true
+    
+        # Copia i file da PDF/2 - RTB alle directory di destinazione nel main
+        - name: Copy PDF files to main
+          run: |
+            echo "Trasferimento dei file PDF..."
             
-            # Aggiungi i file PDF copiati alla commit
-            git add "2 - RTB/"
-            git commit -m "Transport PDFs from develop to main"
+            # Verifica che la directory PDF/2 - RTB esista
+            if [ -d "PDF/2 - RTB" ]; then
+              # Copia ricorsiva dei file PDF e delle sottodirectory nella struttura di destinazione
+              cp -R PDF/2 - RTB/* ./2 - RTB/
+              
+              # Controllo che i file siano stati copiati
+              echo "File trasferiti:"
+              ls -R ./2 - RTB/
+            else
+              echo "ERRORE: La directory PDF/2 - RTB non esiste"
+              exit 1
+            fi
+    
+        # Commit dei file nel branch main
+        - name: Commit and push to main
+          run: |
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git add .
+            git commit -m "Transport PDFs to main branch"
             git push origin main
-          else
-            echo "No PDFs found to transport."
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
