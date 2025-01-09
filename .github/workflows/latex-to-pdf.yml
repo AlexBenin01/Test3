@@ -100,32 +100,49 @@ jobs:
           persist-credentials: true
           ref: main
 
+       transport:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+          ref: main
+
       # Pull PDFs from develop and push to main
       - name: Transport PDFs to main
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Checkout develop branch
+          # Fetch and merge develop into main (to get the latest PDFs)
           git fetch origin develop:develop
-          git checkout develop
+          git merge develop --no-ff -m "Merge PDFs from develop into main"
 
-          # Copy PDFs to main branch with adjusted structure
-          git checkout main
-          git pull origin main
 
+          
+         # Per ogni PDF trovato nella cartella 'PDF/2 - RTB/', spostalo in '2 - RTB/'
           if [ -d "PDF/2 - RTB" ]; then
             find PDF/2\ -\ RTB/ -type f -name "*.pdf" | while read pdf_path; do
-              target_path=$(echo "$pdf_path" | sed 's|PDF/||')
+              # Calcola il percorso relativo rispetto alla cartella 'PDF/'
+              relative_path=$(echo "$pdf_path" | sed 's|PDF/||')
+              # La destinazione diventa la stessa struttura, ma in '2 - RTB/'
+              target_path="2 - RTB/$relative_path"
+              # Crea eventuali cartelle nella destinazione
               mkdir -p "$(dirname "$target_path")"
+              # Sposta il PDF nella nuova destinazione
               mv "$pdf_path" "$target_path"
             done
-            git add 2\ -\ RTB/
+            git add "2 - RTB/"
             git commit -m "Transport PDFs from develop to main"
             git push origin main
           else
             echo "No PDFs found to transport."
           fi
+
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
