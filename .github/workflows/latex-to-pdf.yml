@@ -114,14 +114,18 @@ jobs:
           git checkout main
           git pull origin main
 
-          for pdf_path in PDF/2\ -\ RTB/*; do
-            target_path=$(echo "$pdf_path" | sed 's|PDF/||')
-            mkdir -p "$(dirname "$target_path")"
-            mv "$pdf_path" "$target_path"
-          done
+          if [ -d "PDF/2 - RTB" ]; then
+            find PDF/2\ -\ RTB/ -type f -name "*.pdf" | while read pdf_path; do
+              target_path=$(echo "$pdf_path" | sed 's|PDF/||')
+              mkdir -p "$(dirname "$target_path")"
+              mv "$pdf_path" "$target_path"
+            done
+            git add 2\ -\ RTB/
+            git commit -m "Transport PDFs from develop to main"
+            git push origin main
+          else
+            echo "No PDFs found to transport."
+          fi
 
-          git add 2\ -\ RTB/
-          git commit -m "Transport PDFs from develop to main"
-          git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
