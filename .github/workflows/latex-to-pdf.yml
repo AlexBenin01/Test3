@@ -103,10 +103,12 @@ jobs:
       - name: Prepare PDF content
         run: |
           echo "Preparazione del contenuto della directory PDF..."
-          if [ -d "PDF/2 - RTB" ]; then
-            mv PDF/2 - RTB/ transferred_PDF/
+          mkdir -p transferred_PDF  # Assicura che la directory temporanea esista
+          if [ -d "PDF" ]; then
+            mv PDF/* transferred_PDF/  # Trasferisce tutto il contenuto della cartella PDF
+            echo "Contenuto trasferito nella directory temporanea."
           else
-            echo "ERRORE: La directory PDF/2 - RTB non esiste."
+            echo "ERRORE: La directory PDF non esiste."
             exit 1
           fi
 
