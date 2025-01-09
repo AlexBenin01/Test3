@@ -1,59 +1,97 @@
-name: Get Last Modified File
+name: Build All PDFs
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
 
-permissions:
-  contents: read       # Permette di leggere il codice del repository
-  pull-requests: read  # Permette di leggere le informazioni della pull request
-
 jobs:
-  get-last-modified-file:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout the code
-      uses: actions/checkout@v3
+      # Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
 
-    - name: Fetch the pull request branch
-      run: |
-        echo "Fetching the pull request branch..."
-        git fetch origin pull/${{ github.event.pull_request.number }}/head:pr-branch || { echo 'Git fetch failed'; exit 1; }
+      # Install TeX Live and required packages
+      - name: Install TeX Live with Italian support
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
 
-    - name: Ensure `main` branch is fetched
-      run: |
-        echo "Fetching all branches to ensure 'origin/main' is available..."
-        git fetch --all || { echo 'Git fetch --all failed'; exit 1; }
+      # Install Inkscape
+      - name: Install Inkscape
+        run: |
+          sudo apt-get install -y inkscape
 
-    - name: Check if PR branch exists
-      run: |
-        echo "Checking if PR branch 'pr-branch' exists..."
-        if git show-ref --quiet refs/heads/pr-branch; then
-          echo "Branch exists"
-        else
-          echo "Branch not found! Exiting."
-          exit 1
-        fi
+      # Iterate over all relevant directories
+      - name: Process all LaTeX projects
+        run: |
+          base_dir="src/2 - RTB"
+          output_dir="PDF"
+          mkdir -p "$output_dir"
 
-    - name: Get modified files between PR branch and main
-      run: |
-        echo "Getting the list of modified files between PR branch and main..."
-        # Confronta la PR con main, accertandosi che 'origin/main' sia disponibile
-        changed_files=$(git diff --name-only origin/main...pr-branch)
-        
-        # Se non ci sono file modificati, esci con un errore
-        if [ -z "$changed_files" ]; then
-          echo "No files modified in the pull request!"
-          exit 1
-        fi
+          # Function to process a LaTeX project
+          process_latex_project() {
+            project_dir="$1"
+            cd "$project_dir"
 
-        # Estrai l'ultimo file modificato
-        last_modified_file=$(echo "$changed_files" | tail -n 1)
-        echo "Last modified file or folder: $last_modified_file"
-        echo "last_modified_file=$last_modified_file" >> $GITHUB_ENV
+            # Convert SVGs to PDFs
+            if [ -d "images" ]; then
+              for svg_file in images/*.svg; do
+                [ -e "$svg_file" ] || continue
+                pdf_file="${svg_file%.svg}.pdf"
+                inkscape "$svg_file" --export-filename="$pdf_file"
+              done
+            fi
 
-    - name: Use last modified file output
-      run: |
-        echo "The last modified file is: ${{ env.last_modified_file }}"
+            # Find and compile the main LaTeX file
+            main_tex=$(find . -maxdepth 1 -type f -name "*.tex" | head -n 1)
+            if [ -n "$main_tex" ]; then
+              pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
+              pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
+
+              # Move the generated PDF to the output directory
+              pdf_name=$(basename "$main_tex" .tex).pdf
+              mkdir -p "$GITHUB_WORKSPACE/$output_dir/$project_dir"
+              mv "$pdf_name" "$GITHUB_WORKSPACE/$output_dir/$project_dir/"
+            fi
+
+            cd "$GITHUB_WORKSPACE"
+          }
+
+          # Process root directories (Analisi_dei_Requisiti, Norme_di_Progetto)
+          for dir in "$base_dir/Analisi_dei_Requisiti" "$base_dir/Norme_di_Progetto"; do
+            [ -d "$dir" ] && process_latex_project "$dir"
+          done
+
+          # Process Verbali (Interni, Esterni)
+          for type in "Interni" "Esterni"; do
+            for sub_dir in "$base_dir/Verbali/$type"/*; do
+              [ -d "$sub_dir" ] && process_latex_project "$sub_dir"
+            done
+          done
+
+      # Commit and push PDF to main
+      - name: Commit and push PDFs
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add PDF/
+          git commit -m "Add latest PDFs"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload PDFs as artifacts
+      - name: Upload PDFs as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-pdfs
+          path: PDF/**/*.pdf
