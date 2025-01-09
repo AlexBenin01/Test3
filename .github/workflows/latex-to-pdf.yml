@@ -105,10 +105,15 @@ jobs:
           git checkout main
 
       # Copy content of PDF folder to root
+            # Copy content of PDF folder to root
       - name: Copy PDFs to root
         run: |
-          cp -r PDF/* ./  # Copia tutto il contenuto di PDF nella root
-          rm -rf PDF  # Rimuove la cartella PDF se necessario
+          if [ -d "PDF" ] && [ "$(ls -A PDF)" ]; then
+            mv PDF/* ./  # Sposta tutto il contenuto di PDF nella root
+          else
+            echo "PDF folder is empty or missing in develop. No files to transfer."
+          fi
+
 
       # Commit and push to main
       - name: Commit and push changes to main
