@@ -90,30 +90,33 @@ jobs:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     needs: build
-  
+
     steps:
-      # Checkout del branch main
-      - name: Checkout main branch
+      # Checkout code
+      - name: Checkout code
         uses: actions/checkout@v3
         with:
-          ref: main
           persist-credentials: true
-      
-      - name: Transfer PDFs to main branch
+
+      # Switch to main branch
+      - name: Switch to main branch
         run: |
-          echo "Trasferimento dei file PDF nel branch main..."
-          mkdir -p "./2 - RTB" # Assicura che la directory di destinazione esista
-          mv PDF/* "./2 - RTB/" # Sposta tutto il contenuto di PDF nella cartella 2 - RTB
-          echo "File trasferiti:"
-          ls -R "./2 - RTB/"
-      
-      - name: Commit and push PDFs to main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          git fetch origin main
+          git checkout main
+
+      # Copy content of PDF folder to root
+      - name: Copy PDFs to root
+        run: |
+          cp -r PDF/* ./  # Copia tutto il contenuto di PDF nella root
+          rm -rf PDF  # Rimuove la cartella PDF se necessario
+
+      # Commit and push to main
+      - name: Commit and push changes to main
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add "./2 - RTB/"
-          git commit -m "Transfer PDFs from develop to main"
+          git add .
+          git commit -m "Transport PDFs from develop to main root"
           git push origin main
-      
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
