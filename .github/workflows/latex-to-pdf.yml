@@ -16,6 +16,8 @@ jobs:
       # Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true
 
       # Install TeX Live and required packages
       - name: Install TeX Live with Italian support
@@ -29,13 +31,13 @@ jobs:
           sudo apt-get install -y inkscape
 
       # Process all LaTeX projects
-      - name: Compile all LaTeX projects
+      - name: Process all LaTeX projects
         run: |
           base_dir="src/2 - RTB"
           output_dir="PDF/2 - RTB"
           mkdir -p "$output_dir"
 
-          # Function to process LaTeX projects
+          # Function to process a LaTeX project
           process_latex_project() {
             project_dir="$1"
             relative_path=$(realpath --relative-to="$base_dir" "$project_dir")
@@ -43,7 +45,7 @@ jobs:
             mkdir -p "$output_path"
             cd "$project_dir"
 
-            # Convert SVG to PDF
+            # Convert SVGs to PDFs
             if [ -d "images" ]; then
               for svg_file in images/*.svg; do
                 [ -e "$svg_file" ] || continue
@@ -52,13 +54,13 @@ jobs:
               done
             fi
 
-            # Compile LaTeX file
+            # Find and compile the main LaTeX file
             main_tex=$(find . -maxdepth 1 -type f -name "*.tex" | head -n 1)
             if [ -n "$main_tex" ]; then
               pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
               pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
 
-              # Move PDF to output directory
+              # Move the generated PDF to the output directory
               pdf_name=$(basename "$main_tex" .tex).pdf
               mv "$pdf_name" "$GITHUB_WORKSPACE/$output_path/"
             fi
@@ -66,12 +68,7 @@ jobs:
             cd "$GITHUB_WORKSPACE"
           }
 
-          # Process Analisi_dei_Requisiti and Norme_di_Progetto
-          for dir in "$base_dir/Analisi_dei_Requisiti" "$base_dir/Norme_di_Progetto"; do
-            [ -d "$dir" ] && process_latex_project "$dir"
-          done
-
-          # Process Verbali (Interni and Esterni)
+          # Process Verbali (Interni, Esterni)
           for type in "Interni" "Esterni"; do
             for sub_dir in "$base_dir/Verbali/$type"/*; do
               [ -d "$sub_dir" ] && process_latex_project "$sub_dir"
@@ -84,7 +81,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add PDF/
-          git commit -m "Add PDFs to develop"
+          git commit -m "Add latest PDFs to develop"
           git push origin develop
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,29 +94,37 @@ jobs:
       # Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+          ref: main
 
-      # Checkout develop branch
-      - name: Checkout develop branch
+      # Pull PDFs from develop and push to main
+      - name: Transport PDFs to main
         run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      
+          # Fetch and merge develop into main (to get the latest PDFs)
           git fetch origin develop:develop
-          git checkout develop
-
-      # Move PDFs to main structure
-      - name: Prepare PDFs for main
-        run: |
-          for pdf_path in PDF/2\ -\ RTB/*; do
-            target_path=$(echo "$pdf_path" | sed 's|PDF/||')
-            mkdir -p "$(dirname "$target_path")"
-            mv "$pdf_path" "$target_path"
-          done
-
-      # Commit and push PDFs to main
-      - name: Commit and push PDFs to main
-        run: |
-          git checkout main
-          git pull origin main
-          git add 2\ -\ RTB/
-          git commit -m "Transport PDFs from develop to main"
-          git push origin main
+          git merge develop --no-ff --allow-unrelated-histories -m "Merge PDFs from develop into main"
+      
+          # Per ogni PDF trovato nella cartella 'PDF/2 - RTB/', spostalo in '2 - RTB/'
+          if [ -d "PDF/2 - RTB" ]; then
+            find PDF/2\ -\ RTB/ -type f -name "*.pdf" | while read pdf_path; do
+              # Calcola il percorso relativo rispetto alla cartella 'PDF/'
+              relative_path=$(echo "$pdf_path" | sed 's|PDF/||')
+              # La destinazione diventa la stessa struttura, ma in '2 - RTB/'
+              target_path="2 - RTB/$relative_path"
+              # Crea eventuali cartelle nella destinazione
+              mkdir -p "$(dirname "$target_path")"
+              # Sposta il PDF nella nuova destinazione
+              mv "$pdf_path" "$target_path"
+            done
+            git add "2 - RTB/"
+            git commit -m "Transport PDFs from develop to main"
+            git push origin main
+          else
+            echo "No PDFs found to transport."
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
