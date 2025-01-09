@@ -1,11 +1,11 @@
-name: Build All PDFs
+name: Build and Transport PDFs
 
 on:
   pull_request:
     types:
       - closed
     branches:
-      - main
+      - develop
 
 jobs:
   build:
@@ -30,16 +30,19 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
-      # Iterate over all relevant directories
+      # Process all LaTeX projects
       - name: Process all LaTeX projects
         run: |
           base_dir="src/2 - RTB"
-          output_dir="PDF"
+          output_dir="PDF/2 - RTB"
           mkdir -p "$output_dir"
 
           # Function to process a LaTeX project
           process_latex_project() {
             project_dir="$1"
+            relative_path=$(realpath --relative-to="$base_dir" "$project_dir")
+            output_path="$output_dir/$relative_path"
+            mkdir -p "$output_path"
             cd "$project_dir"
 
             # Convert SVGs to PDFs
@@ -59,8 +62,7 @@ jobs:
 
               # Move the generated PDF to the output directory
               pdf_name=$(basename "$main_tex" .tex).pdf
-              mkdir -p "$GITHUB_WORKSPACE/$output_dir/$project_dir"
-              mv "$pdf_name" "$GITHUB_WORKSPACE/$output_dir/$project_dir/"
+              mv "$pdf_name" "$GITHUB_WORKSPACE/$output_path/"
             fi
 
             cd "$GITHUB_WORKSPACE"
@@ -78,20 +80,51 @@ jobs:
             done
           done
 
-      # Commit and push PDF to main
-      - name: Commit and push PDFs
+      # Commit PDFs to develop
+      - name: Commit PDFs to develop
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add PDF/
-          git commit -m "Add latest PDFs"
-          git push origin main
+          git commit -m "Add latest PDFs to develop"
+          git push origin develop
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Upload PDFs as artifacts
-      - name: Upload PDFs as artifacts
-        uses: actions/upload-artifact@v4
+  transport:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          name: all-pdfs
-          path: PDF/**/*.pdf
+          persist-credentials: true
+          ref: main
+
+      # Pull PDFs from develop and push to main
+      - name: Transport PDFs to main
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Checkout develop branch
+          git fetch origin develop:develop
+          git checkout develop
+
+          # Copy PDFs to main branch with adjusted structure
+          git checkout main
+          git pull origin main
+
+          for pdf_path in PDF/2\ -\ RTB/*; do
+            target_path=$(echo "$pdf_path" | sed 's|PDF/||')
+            mkdir -p "$(dirname "$target_path")"
+            mv "$pdf_path" "$target_path"
+          done
+
+          git add 2\ -\ RTB/
+          git commit -m "Transport PDFs from develop to main"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
