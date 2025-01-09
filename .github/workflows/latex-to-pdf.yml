@@ -89,7 +89,7 @@ jobs:
   transport:
     needs: build
     runs-on: ubuntu-latest
-
+  
     steps:
       # Checkout code
       - name: Checkout code
@@ -97,19 +97,22 @@ jobs:
         with:
           persist-credentials: true
           ref: main
-
+  
       # Pull PDFs from develop and push to main
       - name: Transport PDFs to main
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-      
-          # Fetch and merge develop into main (to get the latest PDFs)
+          
+          # Fetch the latest changes from develop
           git fetch origin develop:develop
+          
+          # Merge develop into main to get the latest PDFs
           git merge develop --no-ff --allow-unrelated-histories -m "Merge PDFs from develop into main"
-      
-          # Per ogni PDF trovato nella cartella 'PDF/2 - RTB/', spostalo in '2 - RTB/'
-          if [ -d "PDF/2 - RTB" ]; then
+          
+          # Se la directory 'PDF' esiste in develop
+          if [ -d "PDF" ]; then
+            # Trova tutti i file PDF sotto 'PDF/2 - RTB/' e spostali nella struttura di destinazione in '2 - RTB/'
             find PDF/2\ -\ RTB/ -type f -name "*.pdf" | while read pdf_path; do
               # Calcola il percorso relativo rispetto alla cartella 'PDF/'
               relative_path=$(echo "$pdf_path" | sed 's|PDF/||')
@@ -120,6 +123,8 @@ jobs:
               # Sposta il PDF nella nuova destinazione
               mv "$pdf_path" "$target_path"
             done
+            
+            # Aggiungi i file PDF spostati alla commit
             git add "2 - RTB/"
             git commit -m "Transport PDFs from develop to main"
             git push origin main
