@@ -16,8 +16,6 @@ jobs:
       # Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          persist-credentials: true
 
       # Install TeX Live and required packages
       - name: Install TeX Live with Italian support
@@ -30,14 +28,13 @@ jobs:
         run: |
           sudo apt-get install -y inkscape
 
-      # Process all LaTeX projects
+      # Process LaTeX projects and generate PDFs
       - name: Process all LaTeX projects
         run: |
           base_dir="src/2 - RTB"
           output_dir="PDF/2 - RTB"
           mkdir -p "$output_dir"
 
-          # Function to process a LaTeX project
           process_latex_project() {
             project_dir="$1"
             relative_path=$(realpath --relative-to="$base_dir" "$project_dir")
@@ -45,7 +42,6 @@ jobs:
             mkdir -p "$output_path"
             cd "$project_dir"
 
-            # Convert SVGs to PDFs
             if [ -d "images" ]; then
               for svg_file in images/*.svg; do
                 [ -e "$svg_file" ] || continue
@@ -54,13 +50,10 @@ jobs:
               done
             fi
 
-            # Find and compile the main LaTeX file
             main_tex=$(find . -maxdepth 1 -type f -name "*.tex" | head -n 1)
             if [ -n "$main_tex" ]; then
               pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
               pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
-
-              # Move the generated PDF to the output directory
               pdf_name=$(basename "$main_tex" .tex).pdf
               mv "$pdf_name" "$GITHUB_WORKSPACE/$output_path/"
             fi
@@ -68,62 +61,54 @@ jobs:
             cd "$GITHUB_WORKSPACE"
           }
 
-          # Process Verbali (Interni, Esterni)
           for type in "Interni" "Esterni"; do
             for sub_dir in "$base_dir/Verbali/$type"/*; do
               [ -d "$sub_dir" ] && process_latex_project "$sub_dir"
             done
           done
 
-      # Commit PDFs to develop
-      - name: Commit PDFs to develop
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add PDF/
-          git commit -m "Add latest PDFs to develop"
-          git push origin develop
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Upload PDFs as artifact
+      - name: Upload PDFs as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: pdf-artifact
+          path: PDF/
 
   transport_to_main:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     needs: build
-  
+
     steps:
-      # Checkout del branch main
-      - name: Checkout code
+      # Checkout branch main
+      - name: Checkout branch main
         uses: actions/checkout@v3
         with:
           ref: main
-          persist-credentials: true
-  
-      # Copia i file da PDF/2 - RTB alle directory di destinazione nel main
-      - name: Copy PDF files to main
+
+      # Download PDFs artifact
+      - name: Download PDFs artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: pdf-artifact
+
+      # Move content to root
+      - name: Move PDFs to root
         run: |
-          echo "Trasferimento dei file PDF..."
-          
-          # Verifica che la directory PDF/2 - RTB esista
-          if [ -d "PDF/2 - RTB" ]; then
-            # Copia ricorsiva dei file PDF e delle sottodirectory nella struttura di destinazione nel main
-            cp -R "PDF/2 - RTB/"* "./2 - RTB/"
-            
-            # Controllo che i file siano stati copiati
-            echo "File trasferiti:"
-            ls -R ./2 - RTB/
+          if [ -d "PDF" ]; then
+            mv PDF/* ./
+            rm -rf PDF
           else
-            echo "ERRORE: La directory PDF/2 - RTB non esiste"
-            exit 1
+            echo "No PDF directory found."
           fi
-  
-      # Commit dei file nel branch main
+
+      # Commit and push changes to main
       - name: Commit and push to main
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "Transport PDFs to main branch"
+          git commit -m "Transport PDFs from develop to main root"
           git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
