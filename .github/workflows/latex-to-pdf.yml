@@ -1,44 +1,131 @@
-transport:
-  needs: build
-  runs-on: ubuntu-latest
+name: Build and Transport PDFs
 
-  steps:
-    # Checkout code
-    - name: Checkout code
-      uses: actions/checkout@v3
-      with:
-        persist-credentials: true
-        ref: main
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - develop
 
-    # Copy PDFs from develop to main
-    - name: Transport PDFs to main
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        
-        # Fetch the latest changes from develop without merging
-        git fetch origin develop:develop
-        
-        # Se la directory 'PDF' esiste in develop
-        if [ -d "PDF" ]; then
-          # Trova tutti i file PDF sotto 'PDF/2 - RTB/' e spostali nella struttura di destinazione in '2 - RTB/'
-          find PDF/2\ -\ RTB/ -type f -name "*.pdf" | while read pdf_path; do
-            # Calcola il percorso relativo rispetto alla cartella 'PDF/'
-            relative_path=$(echo "$pdf_path" | sed 's|PDF/||')
-            # La destinazione diventa la stessa struttura, ma in '2 - RTB/'
-            target_path="2 - RTB/$relative_path"
-            # Crea eventuali cartelle nella destinazione
-            mkdir -p "$(dirname "$target_path")"
-            # Copia il PDF nella nuova destinazione
-            cp "$pdf_path" "$target_path"
+jobs:
+  build:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+
+      # Install TeX Live and required packages
+      - name: Install TeX Live with Italian support
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
+
+      # Install Inkscape
+      - name: Install Inkscape
+        run: |
+          sudo apt-get install -y inkscape
+
+      # Process all LaTeX projects
+      - name: Process all LaTeX projects
+        run: |
+          base_dir="src/2 - RTB"
+          output_dir="PDF/2 - RTB"
+          mkdir -p "$output_dir"
+
+          # Function to process a LaTeX project
+          process_latex_project() {
+            project_dir="$1"
+            relative_path=$(realpath --relative-to="$base_dir" "$project_dir")
+            output_path="$output_dir/$relative_path"
+            mkdir -p "$output_path"
+            cd "$project_dir"
+
+            # Convert SVGs to PDFs
+            if [ -d "images" ]; then
+              for svg_file in images/*.svg; do
+                [ -e "$svg_file" ] || continue
+                pdf_file="${svg_file%.svg}.pdf"
+                inkscape "$svg_file" --export-filename="$pdf_file"
+              done
+            fi
+
+            # Find and compile the main LaTeX file
+            main_tex=$(find . -maxdepth 1 -type f -name "*.tex" | head -n 1)
+            if [ -n "$main_tex" ]; then
+              pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
+              pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
+
+              # Move the generated PDF to the output directory
+              pdf_name=$(basename "$main_tex" .tex).pdf
+              mv "$pdf_name" "$GITHUB_WORKSPACE/$output_path/"
+            fi
+
+            cd "$GITHUB_WORKSPACE"
+          }
+
+          # Process Verbali (Interni, Esterni)
+          for type in "Interni" "Esterni"; do
+            for sub_dir in "$base_dir/Verbali/$type"/*; do
+              [ -d "$sub_dir" ] && process_latex_project "$sub_dir"
+            done
           done
+
+      # Commit PDFs to develop
+      - name: Commit PDFs to develop
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add PDF/
+          git commit -m "Add latest PDFs to develop"
+          git push origin develop
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  transport:
+    needs: build
+    runs-on: ubuntu-latest
+  
+    steps:
+      # Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+          ref: main
+  
+      # Copy PDFs from develop to main
+      - name: Transport PDFs to main
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Aggiungi i file PDF copiati alla commit
-          git add "2 - RTB/"
-          git commit -m "Transport PDFs from develop to main"
-          git push origin main
-        else
-          echo "No PDFs found to transport."
-        fi
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Fetch the latest changes from develop without merging
+          git fetch origin develop:develop
+          
+          # Se la directory 'PDF' esiste in develop
+          if [ -d "PDF" ]; then
+            # Trova tutti i file PDF sotto 'PDF/2 - RTB/' e spostali nella struttura di destinazione in '2 - RTB/'
+            find PDF/2\ -\ RTB/ -type f -name "*.pdf" | while read pdf_path; do
+              # Calcola il percorso relativo rispetto alla cartella 'PDF/'
+              relative_path=$(echo "$pdf_path" | sed 's|PDF/||')
+              # La destinazione diventa la stessa struttura, ma in '2 - RTB/'
+              target_path="2 - RTB/$relative_path"
+              # Crea eventuali cartelle nella destinazione
+              mkdir -p "$(dirname "$target_path")"
+              # Copia il PDF nella nuova destinazione
+              cp "$pdf_path" "$target_path"
+            done
+            
+            # Aggiungi i file PDF copiati alla commit
+            git add "2 - RTB/"
+            git commit -m "Transport PDFs from develop to main"
+            git push origin main
+          else
+            echo "No PDFs found to transport."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
