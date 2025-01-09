@@ -98,6 +98,18 @@ jobs:
         with:
           persist-credentials: true
 
+      - name: Verify PDF directory before copying to main
+        run: |
+          if [ -d "PDF" ]; then
+            echo "PDF directory exists in the workspace."
+            ls -R PDF
+          else
+            echo "PDF directory is missing in the workspace."
+            exit 1
+          fi
+
+
+
       # Switch to main branch
       - name: Switch to main branch
         run: |
