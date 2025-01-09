@@ -29,12 +29,14 @@ jobs:
           sudo apt-get install -y inkscape
 
       # Process LaTeX projects and generate PDFs
+            # Process all LaTeX projects
       - name: Process all LaTeX projects
         run: |
           base_dir="src/2 - RTB"
           output_dir="PDF/2 - RTB"
           mkdir -p "$output_dir"
 
+          # Function to process a LaTeX project
           process_latex_project() {
             project_dir="$1"
             relative_path=$(realpath --relative-to="$base_dir" "$project_dir")
@@ -42,6 +44,7 @@ jobs:
             mkdir -p "$output_path"
             cd "$project_dir"
 
+            # Convert SVGs to PDFs
             if [ -d "images" ]; then
               for svg_file in images/*.svg; do
                 [ -e "$svg_file" ] || continue
@@ -50,22 +53,29 @@ jobs:
               done
             fi
 
+            # Find and compile the main LaTeX file
             main_tex=$(find . -maxdepth 1 -type f -name "*.tex" | head -n 1)
             if [ -n "$main_tex" ]; then
               pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
               pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
+
+              # Move the generated PDF to the output directory, removing intermediate folders
               pdf_name=$(basename "$main_tex" .tex).pdf
-              mv "$pdf_name" "$GITHUB_WORKSPACE/$output_path/"
+              final_output_path="$output_dir/$(dirname "$relative_path")"
+              mkdir -p "$final_output_path"
+              mv "$pdf_name" "$GITHUB_WORKSPACE/$final_output_path/$(basename "$project_dir").pdf"
             fi
 
             cd "$GITHUB_WORKSPACE"
           }
 
+          # Process Verbali (Interni, Esterni)
           for type in "Interni" "Esterni"; do
             for sub_dir in "$base_dir/Verbali/$type"/*; do
               [ -d "$sub_dir" ] && process_latex_project "$sub_dir"
             done
           done
+
 
       # Upload PDFs as artifact
       - name: Upload PDFs as artifact
