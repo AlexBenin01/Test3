@@ -68,8 +68,6 @@ jobs:
             cd "$GITHUB_WORKSPACE"
           }
 
-          
-
           # Process Verbali (Interni, Esterni)
           for type in "Interni" "Esterni"; do
             for sub_dir in "$base_dir/Verbali/$type"/*; do
@@ -100,18 +98,6 @@ jobs:
           persist-credentials: true
           ref: main
 
-       transport:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      # Checkout code
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          persist-credentials: true
-          ref: main
-
       # Pull PDFs from develop and push to main
       - name: Transport PDFs to main
         run: |
@@ -122,9 +108,7 @@ jobs:
           git fetch origin develop:develop
           git merge develop --no-ff -m "Merge PDFs from develop into main"
 
-
-          
-         # Per ogni PDF trovato nella cartella 'PDF/2 - RTB/', spostalo in '2 - RTB/'
+          # Per ogni PDF trovato nella cartella 'PDF/2 - RTB/', spostalo in '2 - RTB/'
           if [ -d "PDF/2 - RTB" ]; then
             find PDF/2\ -\ RTB/ -type f -name "*.pdf" | while read pdf_path; do
               # Calcola il percorso relativo rispetto alla cartella 'PDF/'
@@ -142,7 +126,5 @@ jobs:
           else
             echo "No PDFs found to transport."
           fi
-
-
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
