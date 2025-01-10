@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v3
 
       # Install TeX Live and required packages
-      - name: Install TeX Live with Italian support
+      - name: Install TeX Live with required packages
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
