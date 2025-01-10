@@ -17,13 +17,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Cache for TeX Live and Inkscape
-      - name: Cache APT packages
-        uses: actions/cache@v3
-        with:
-          path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-cache
-          restore-keys: ${{ runner.os }}-apt-cache
+            # Install TeX Live and required packages
+      - name: Install TeX Live with Italian support
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-base texlive-latex-extra texlive-fonts-recommended \
+            texlive-lang-italian lmodern
+
 
       # Install TeX Live and required packages
       - name: Install TeX Live with Italian support
