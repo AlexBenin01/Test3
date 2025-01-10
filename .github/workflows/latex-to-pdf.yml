@@ -17,19 +17,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # Cache for TeX Live and Inkscape
+      - name: Cache APT packages
+        uses: actions/cache@v3
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-cache
+          restore-keys: ${{ runner.os }}-apt-cache
+
       # Install TeX Live and required packages
       - name: Install TeX Live with Italian support
         run: |
           sudo apt-get update
-          sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian
+          sudo apt-get install -y --no-install-recommends \
+            texlive-latex-base texlive-latex-extra texlive-lang-italian \
+            texlive-fonts-recommended
 
       # Install Inkscape
       - name: Install Inkscape
         run: |
-          sudo apt-get install -y inkscape
+          sudo apt-get install -y --no-install-recommends inkscape
 
       # Process LaTeX projects and generate PDFs
-            # Process all LaTeX projects
       - name: Process all LaTeX projects
         run: |
           base_dir="src/2 - RTB"
@@ -76,7 +85,6 @@ jobs:
             done
           done
 
-
       # Upload PDFs as artifact
       - name: Upload PDFs as artifact
         uses: actions/upload-artifact@v3
@@ -106,7 +114,7 @@ jobs:
       - name: Move PDFs to root
         run: |
           if [ -d "PDF" ]; then
-            mv PDF/* ./
+            mv PDF/* ./ # Sposta il contenuto senza mantenere la directory
             rm -rf PDF
           else
             echo "No PDF directory found."
