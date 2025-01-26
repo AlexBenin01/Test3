@@ -22,13 +22,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y texlive texlive-latex-extra texlive-fonts-recommended texlive-lang-italian inkscape
-          echo "Installation complete!"
-
-      # Debug environment (ensure no `tlmgr` is invoked)
-      - name: Debug environment
-        run: |
-          which tlmgr || echo "tlmgr not found"
-          tlmgr --version || echo "tlmgr cannot run"
 
       # Process LaTeX projects and generate PDFs
       - name: Process all LaTeX projects
@@ -37,7 +30,6 @@ jobs:
           output_dir="PDF/2 - RTB"
           mkdir -p "$output_dir"
 
-          # Function to process a LaTeX project
           process_latex_project() {
             project_dir="$1"
             relative_path=$(realpath --relative-to="$base_dir" "$project_dir")
@@ -54,24 +46,22 @@ jobs:
               done
             fi
 
-            # Find and compile the main LaTeX file
+            # Compile the main LaTeX file
             main_tex=$(find . -maxdepth 1 -type f -name "*.tex" | head -n 1)
             if [ -n "$main_tex" ]; then
               pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
               pdflatex -shell-escape -interaction=nonstopmode -file-line-error "$main_tex"
 
-              # Move the generated PDF to the output directory, removing intermediate folders
               pdf_name=$(basename "$main_tex" .tex).pdf
+              renamed_pdf_name="$(basename "$main_tex" .tex)_V1.0.0.pdf"
               final_output_path="$output_dir/$(dirname "$relative_path")"
               mkdir -p "$final_output_path"
-              renamed_pdf_name="$(basename "$main_tex" .tex)_V1.0.0.pdf"
               mv "$pdf_name" "$GITHUB_WORKSPACE/$final_output_path/$renamed_pdf_name"
             fi
 
             cd "$GITHUB_WORKSPACE"
           }
 
-          # Process Verbali (Interni, Esterni)
           for type in "Interni" "Esterni"; do
             for sub_dir in "$base_dir/Verbali/$type"/*; do
               [ -d "$sub_dir" ] && process_latex_project "$sub_dir"
@@ -103,20 +93,19 @@ jobs:
         with:
           name: pdf-artifact
 
-      # Move content to root
       # Move PDFs to root with versioning
       - name: Move PDFs to root with version
         run: |
           if [ -d "PDF" ]; then
-            for pdf in PDF/*; do
+            for pdf in PDF/**/*; do
               if [ -f "$pdf" ]; then
-                # Add _V1.0.0 to the PDF name
                 renamed_pdf="$(basename "$pdf" .pdf)_V1.0.0.pdf"
-                # Check if the file already exists in the root directory
-                if [ -f "$renamed_pdf" ]; then
-                  echo "File $renamed_pdf already exists. Skipping..."
+                destination="$(basename "$renamed_pdf")"
+
+                if [ -f "$destination" ]; then
+                  echo "File $destination already exists. Keeping the original."
                 else
-                  mv "$pdf" "$renamed_pdf"
+                  mv "$pdf" "$destination"
                 fi
               fi
             done
@@ -131,11 +120,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          if git status | grep -q "Changes to be committed"; then
-            git commit -m "Transport PDFs from develop to main root"
-            git push origin main
-          else
-            echo "No changes to commit."
-          fi
+          git commit -m "Transport PDFs from develop to main root"
+          git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
