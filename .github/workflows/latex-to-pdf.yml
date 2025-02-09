@@ -92,27 +92,28 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: pdf-artifact
+          path: temp_PDF/
 
-      # Move content to root if not already present
+      # Move PDFs to root if not present
       - name: Move PDFs to root if not present
         run: |
-          if [ -d "PDF" ]; then
-            for pdf in PDF/*; do
-              if [ -f "$pdf" ]; then
-                renamed_pdf="$(basename "$pdf" .pdf)_V1.0.0.pdf"
+          mkdir -p PDF_BACKUP
+          
+          for pdf in temp_PDF/*; do
+            if [ -f "$pdf" ]; then
+              renamed_pdf="$(basename "$pdf" .pdf)_V1.0.0.pdf"
 
-                # Se il file già esiste nel main, non lo sovrascrivere
-                if [ -f "$renamed_pdf" ]; then
-                  echo "Skipping $renamed_pdf, already exists in main."
-                else
-                  mv "$pdf" "$renamed_pdf"
-                fi
+              # Se il file esiste già in main, non sovrascriverlo
+              if [ -f "$renamed_pdf" ]; then
+                echo "Skipping $renamed_pdf, already exists in main."
+              else
+                mv "$pdf" "$renamed_pdf"
               fi
-            done
-            rm -rf PDF
-          else
-            echo "No PDF directory found."
-          fi
+            fi
+          done
+
+          # Pulizia della cartella temporanea
+          rm -rf temp_PDF
 
       # Commit and push changes to main
       - name: Commit and push to main
