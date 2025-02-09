@@ -79,43 +79,32 @@ jobs:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     needs: build
-
+  
     steps:
-      # Checkout branch main
       - name: Checkout branch main
         uses: actions/checkout@v3
         with:
           ref: main
-
-      # Download PDFs artifact
+  
       - name: Download PDFs artifact
         uses: actions/download-artifact@v4
         with:
           name: pdf-artifact
           path: temp_PDF/
-
-      # Move PDFs to root if not present
-      - name: Move PDFs to root if not present
+  
+      - name: Move PDFs to main root if not present
         run: |
-          mkdir -p PDF_BACKUP
-          
-          for pdf in temp_PDF/*; do
+          for pdf in temp_PDF/*.pdf; do
             if [ -f "$pdf" ]; then
-              renamed_pdf="$(basename "$pdf" .pdf)_V1.0.0.pdf"
-
-              # Se il file esiste già in main, non sovrascriverlo
-              if [ -f "$renamed_pdf" ]; then
-                echo "Skipping $renamed_pdf, already exists in main."
+              dest="$(basename "$pdf")"
+              if [ -f "$dest" ]; then
+                echo "Skipping $dest, already exists in main."
               else
-                mv "$pdf" "$renamed_pdf"
+                mv "$pdf" "$dest"
               fi
             fi
           done
-
-          # Pulizia della cartella temporanea
-          rm -rf temp_PDF
-
-      # Commit and push changes to main
+  
       - name: Commit and push to main
         run: |
           if git status --porcelain | grep .; then
